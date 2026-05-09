@@ -10,7 +10,7 @@ const coreMembers = [
   { id: 902, name: "Md. Shohel Islam", designation: "Founder and MD", education: "B.A in Bangla at Govt. Asheq Mahmud College", subjects: "Bangla", experience: "12+ Years", image: "/faculty/shohel.jpg" }
 ];
 
-// Other Founding Teachers
+// Other Founding Teachers (Now deletable)
 const otherFoundingTeachers = [
   { id: 903, name: "Md. Ratan Hasan", designation: "Instructor", education: "B.Sc in Math (studying) at Govt. Asheq Mahmud College", subjects: "Math, Science", experience: "3+ Years", image: "/faculty/ratan.jpg" },
   { id: 904, name: "Md. Maruf Hasan", designation: "Instructor", education: "B.A in English (studying) at Govt. Asheq Mahmud College", subjects: "English", experience: "4+ Years", image: "/faculty/maruf.jpg" },
@@ -48,13 +48,10 @@ export default function AdminDashboard() {
   };
 
   const fetchFaculties = () => {
-    fetch(`/api/faculty?t=${new Date().getTime()}`, { 
-      cache: "no-store",
-      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
-    })
+    fetch(`/api/faculty?t=${new Date().getTime()}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => { 
-        if (data.success && Array.isArray(data.data)) {
+        if (data.success) {
           setFaculties([...coreMembers, ...otherFoundingTeachers, ...data.data]); 
         } else {
           setFaculties([...coreMembers, ...otherFoundingTeachers]);
@@ -85,7 +82,6 @@ export default function AdminDashboard() {
     } catch (err) { alert("❌ Failed to delete student."); }
   };
 
-  // ✅ Student Registration (Re-added to fix your error)
   const handleRegisterStudent = async () => {
     if (!fullName || !phone || !className) return alert("❌ Required: Full Name, Phone, and Class!");
     setLoadingMsg("Registering...");
@@ -104,22 +100,17 @@ export default function AdminDashboard() {
     finally { setLoadingMsg(""); }
   };
 
-  // ✅ Faculty Registration (With Instant UI Update)
   const handleRegisterFaculty = async () => {
     if (!fName || !fDesignation || !fSubjects) return alert("❌ Required: Name, Designation, and Subjects!");
     setLoadingMsg("Adding Teacher...");
     try {
-      const newTeacherData = { name: fName, designation: fDesignation, education: fEducation, subjects: fSubjects, experience: fExperience, image: fImage };
-
       const res = await fetch("/api/faculty", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTeacherData),
+        body: JSON.stringify({ name: fName, designation: fDesignation, education: fEducation, subjects: fSubjects, experience: fExperience, image: fImage }),
       });
       const result = await res.json();
-      
       if (result.success) {
         alert("✅ Teacher added successfully!");
-        setFaculties(prevFaculties => [...prevFaculties, { id: Date.now(), ...newTeacherData }]);
         setFName(""); setFDesignation(""); setFEducation(""); setFSubjects(""); setFExperience(""); setFImage("");
         fetchFaculties(); 
       } else alert("❌ Error: " + result.message);
@@ -132,12 +123,14 @@ export default function AdminDashboard() {
       alert("⚠️ This is a Core Founding Member (CEO/MD)! You cannot delete them.");
       return;
     }
+    
     if (id >= 903 && id <= 905) {
       if (!window.confirm("Are you sure you want to delete this founding teacher?")) return;
       setFaculties(faculties.filter(f => f.id !== id));
       alert("✅ Teacher removed from the list.");
       return;
     }
+
     if (!window.confirm("Are you sure you want to delete this teacher?")) return;
     try {
       const res = await fetch(`/api/faculty?id=${id}`, { method: "DELETE" });
@@ -149,15 +142,24 @@ export default function AdminDashboard() {
 
   const switchTab = (tabName: string) => { setActiveTab(tabName); };
 
+  // =========================================================
+  // NEW STYLE: Added black color and font-weight for visibility
+  // =========================================================
   const inputStyle = {
-    width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '5px',
-    color: '#000000', fontWeight: '500', backgroundColor: '#ffffff', outline: 'none'
+    width: '100%',
+    padding: '10px',
+    border: '1px solid #d1d5db',
+    borderRadius: '5px',
+    color: '#000000', 
+    fontWeight: '500',
+    backgroundColor: '#ffffff',
+    outline: 'none'
   };
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f3f4f6', fontFamily: 'sans-serif' }}>
       
-      {/* Sidebar */}
+      {/* Sidebar Section */}
       <div style={{ width: '250px', backgroundColor: '#1f2937', color: 'white', padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '30px', borderBottom: '1px solid #374151', paddingBottom: '15px' }}>
           <Image src="/prottoy academy logo.png" alt="Logo" width={45} height={45} style={{ borderRadius: '6px', objectFit: 'cover' }} />
@@ -176,9 +178,10 @@ export default function AdminDashboard() {
         <button onClick={handleLogout} style={{ marginTop: 'auto', padding: '12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Logout</button>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content Area */}
       <div style={{ flex: 1, padding: '40px', overflowX: 'auto' }}>
         
+        {/* DASHBOARD */}
         {activeTab === "dashboard" && (
           <>
             <h1 style={{ fontSize: '32px', color: '#111827', marginBottom: '5px', fontWeight: 'bold' }}>Welcome, Admin!</h1>
@@ -192,107 +195,194 @@ export default function AdminDashboard() {
                 <h3 style={{ color: '#6b7280', fontSize: '16px', marginBottom: '10px', fontWeight: '600' }}>👨‍🏫 Total Faculty</h3>
                 <p style={{ fontSize: '40px', fontWeight: 'bold', color: '#111827' }}>{faculties.length}</p>
               </div>
+              <div onClick={() => switchTab("classLecture")} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '15px', borderLeft: '8px solid #ef4444', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', cursor: 'pointer' }}>
+                <h3 style={{ color: '#6b7280', fontSize: '16px', marginBottom: '10px', fontWeight: '600' }}>🎥 Class Lectures</h3>
+                <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#ef4444', marginTop: '10px' }}>Dream Up Academy</p>
+              </div>
+              <div onClick={() => switchTab("payments")} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '15px', borderLeft: '8px solid #f59e0b', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', cursor: 'pointer' }}>
+                <h3 style={{ color: '#6b7280', fontSize: '16px', marginBottom: '10px', fontWeight: '600' }}>💳 Payments</h3>
+                <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#f59e0b', marginTop: '10px' }}>Coming Soon</p>
+              </div>
             </div>
           </>
         )}
 
-        {/* FACULTY LIST */}
+        {/* FACULTY MANAGEMENT */}
         {activeTab === "facultyList" && (
           <>
             <h1 style={{ fontSize: '32px', color: '#111827', fontWeight: 'bold', marginBottom: '10px' }}>Faculty Management</h1>
+            <p style={{ color: '#6b7280', marginBottom: '30px' }}>View all teachers and register new ones below.</p>
+
+            {/* Current Faculty List */}
+            <h3 style={{ color: '#1e293b', fontSize: '20px', marginBottom: '20px' }}>Current Faculty List ({faculties.length})</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '25px', marginBottom: '50px' }}>
               {faculties.map((teacher) => (
                 <div key={teacher.id} style={{ backgroundColor: 'white', borderRadius: '15px', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: '#f3f4f6', position: 'relative' }}>
-                    <img src={teacher.image || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} alt={teacher.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  
+                  {/* ====== এখানে স্কয়ার শেপ (Square Shape) এবং ফেস সেন্টারে রাখা হয়েছে ====== */}
+                  <div style={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: '#f3f4f6', position: 'relative', overflow: 'hidden' }}>
+                    <img 
+                      src={teacher.image || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} 
+                      alt={teacher.name} 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} 
+                    />
+                    {(teacher.id === 901 || teacher.id === 902) && (
+                      <span style={{ position: 'absolute', top: '10px', right: '10px', backgroundColor: '#10b981', color: 'white', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>★ Core Member</span>
+                    )}
                   </div>
-                  <div style={{ padding: '20px', flex: 1 }}>
-                    <h3 style={{ fontSize: '18px', fontWeight: 'bold' }}>{teacher.name}</h3>
-                    <p style={{ color: '#6366f1', fontSize: '14px' }}>{teacher.designation}</p>
-                    <button onClick={() => handleDeleteFaculty(teacher.id)} style={{ marginTop: '15px', width: '100%', padding: '8px', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Delete</button>
+
+                  <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ margin: '0 0 5px 0', fontSize: '20px', color: '#111827', fontWeight: 'bold' }}>{teacher.name}</h3>
+                    <p style={{ margin: '0 0 15px 0', color: '#6366f1', fontWeight: '600', fontSize: '14px' }}>{teacher.designation}</p>
+                    <div style={{ marginBottom: '20px', fontSize: '14px', color: '#4b5563', lineHeight: '1.6' }}>
+                      <div style={{ marginBottom: '8px' }}>🎓 <strong>Edu:</strong> {teacher.education}</div>
+                      <div style={{ marginBottom: '8px' }}>⏳ <strong>Exp:</strong> {teacher.experience}</div>
+                      <div>📚 <span style={{ backgroundColor: '#e0e7ff', padding: '3px 8px', borderRadius: '6px', fontWeight: 'bold', color: '#4338ca' }}>{teacher.subjects}</span></div>
+                    </div>
+
+                    {(teacher.id === 901 || teacher.id === 902) ? (
+                      <button disabled style={{ marginTop: 'auto', width: '100%', padding: '10px', backgroundColor: '#f3f4f6', color: '#9ca3af', border: '1px solid #e5e7eb', borderRadius: '8px', fontWeight: 'bold', cursor: 'not-allowed' }}>Protected Member</button>
+                    ) : (
+                      <button onClick={() => handleDeleteFaculty(teacher.id)} style={{ marginTop: 'auto', width: '100%', padding: '10px', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🗑️ Delete Teacher</button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Add Faculty Form */}
-            <div style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '12px', border: '2px dashed #cbd5e1' }}>
-              <h3>+ Add New Teacher</h3>
+            {/* Add New Teacher Form */}
+            <div style={{ backgroundColor: '#f8fafc', borderRadius: '12px', padding: '30px', border: '2px dashed #cbd5e1', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
+              <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#10b981', fontSize: '22px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>+ Register New Teacher</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-                <input type="text" value={fName} onChange={(e) => setFName(e.target.value)} placeholder="Teacher Name *" style={inputStyle} />
-                <input type="text" value={fDesignation} onChange={(e) => setFDesignation(e.target.value)} placeholder="Designation *" style={inputStyle} />
-                <input type="text" value={fEducation} onChange={(e) => setFEducation(e.target.value)} placeholder="Education" style={inputStyle} />
-                <input type="text" value={fSubjects} onChange={(e) => setFSubjects(e.target.value)} placeholder="Subjects *" style={inputStyle} />
-                <button onClick={handleRegisterFaculty} disabled={!!loadingMsg} style={{ gridColumn: '1 / -1', padding: '12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>{loadingMsg ? loadingMsg : "Save Teacher"}</button>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>Teacher Name *</label>
+                  <input type="text" value={fName} onChange={(e) => setFName(e.target.value)} placeholder="e.g. Md. Rashedul Islam" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>Designation *</label>
+                  <input type="text" value={fDesignation} onChange={(e) => setFDesignation(e.target.value)} placeholder="e.g. Guest Lecturer" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>Educational Details</label>
+                  <input type="text" value={fEducation} onChange={(e) => setFEducation(e.target.value)} placeholder="e.g. B.Sc in CSE" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>Teaching Subjects *</label>
+                  <input type="text" value={fSubjects} onChange={(e) => setFSubjects(e.target.value)} placeholder="e.g. Higher Math" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>Experience</label>
+                  <input type="text" value={fExperience} onChange={(e) => setFExperience(e.target.value)} placeholder="e.g. 2+ Years" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>Image Link (URL - Optional)</label>
+                  <input type="text" value={fImage} onChange={(e) => setFImage(e.target.value)} placeholder="https://..." style={inputStyle} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-start', gridColumn: '1 / -1' }}>
+                  <button type="button" onClick={handleRegisterFaculty} disabled={!!loadingMsg} style={{ padding: '12px 30px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
+                    {loadingMsg ? loadingMsg : "💾 Save Teacher Data"}
+                  </button>
+                </div>
               </div>
             </div>
           </>
         )}
 
-        {/* ADD STUDENT */}
+        {/* STUDENTS LIST & ADD STUDENT */}
         {activeTab === "addNewStudent" && (
           <>
-            <h1>Register New Student</h1>
-            <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '8px', maxWidth: '600px' }}>
+            <h1 style={{ fontSize: '32px', color: '#111827', marginBottom: '20px', fontWeight: 'bold' }}>Register New Student</h1>
+            <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '30px', maxWidth: '600px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name *" style={inputStyle} />
-                <input type="text" value={fathersName} onChange={(e) => setFathersName(e.target.value)} placeholder="Father's Name" style={inputStyle} />
-                <input type="text" value={mothersName} onChange={(e) => setMothersName(e.target.value)} placeholder="Mother's Name" style={inputStyle} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                  <select value={className} onChange={(e) => setClassName(e.target.value)} style={inputStyle}>
-                    <option value="">Select Class *</option>
-                    <option value="Class 6">Class 6</option>
-                    <option value="Class 7">Class 7</option>
-                    <option value="Class 8">Class 8</option>
-                    <option value="Class 9">Class 9</option>
-                    <option value="Class 10">Class 10</option>
-                    <option value="SSC 2026">SSC 2026</option>
-                  </select>
-                  <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone Number *" style={inputStyle} />
+                
+                {/* Full Name */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151' }}>Student Full Name *</label>
+                  <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" style={inputStyle} />
                 </div>
-                <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Address" style={inputStyle} />
-                <button onClick={handleRegisterStudent} disabled={!!loadingMsg} style={{ padding: '12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>{loadingMsg ? loadingMsg : "Register"}</button>
+                
+                {/* Father & Mother Name */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151' }}>Father's Name</label>
+                    <input type="text" value={fathersName} onChange={(e) => setFathersName(e.target.value)} placeholder="Father's Name" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151' }}>Mother's Name</label>
+                    <input type="text" value={mothersName} onChange={(e) => setMothersName(e.target.value)} placeholder="Mother's Name" style={inputStyle} />
+                  </div>
+                </div>
+
+                {/* Class & Phone Number */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151' }}>Class *</label>
+                    <select value={className} onChange={(e) => setClassName(e.target.value)} style={inputStyle}>
+                      <option value="">Select Class</option>
+                      <option value="Class 6">Class 6</option>
+                      <option value="Class 7">Class 7</option>
+                      <option value="Class 8">Class 8</option>
+                      <option value="Class 9">Class 9</option>
+                      <option value="Class 10">Class 10</option>
+                      <option value="SSC 2026">SSC 2026</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151' }}>Phone Number (Login ID) *</label>
+                    <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="017XXXXXXX" style={inputStyle} />
+                  </div>
+                </div>
+
+                {/* Address */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151' }}>Address</label>
+                  <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Village, Thana, District" style={inputStyle} />
+                </div>
+
+                <button type="button" onClick={handleRegisterStudent} disabled={!!loadingMsg} style={{ marginTop: '10px', padding: '12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+                  {loadingMsg ? loadingMsg : "Register Student"}
+                </button>
               </div>
             </div>
           </>
         )}
 
-        {/* STUDENT LIST */}
         {activeTab === "studentsList" && (
           <>
-            <h1>Students List</h1>
-            <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', minWidth: '800px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <h1 style={{ fontSize: '32px', color: '#111827', marginBottom: '20px', fontWeight: 'bold' }}>Detailed Students List</h1>
+            <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', minWidth: '1000px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ textAlign: 'left', backgroundColor: '#f9fafb' }}>
-                    <th style={{ padding: '15px' }}>Name</th>
-                    <th style={{ padding: '15px' }}>Class</th>
-                    <th style={{ padding: '15px' }}>Phone</th>
-                    <th style={{ padding: '15px' }}>Action</th>
+                  <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+                    <th style={{ padding: '15px', color: '#374151' }}>Name</th>
+                    <th style={{ padding: '15px', color: '#374151' }}>Class</th>
+                    <th style={{ padding: '15px', color: '#374151' }}>Phone</th>
+                    <th style={{ padding: '15px', color: '#374151', textAlign: 'center' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {students.map((student) => (
                     <tr key={student.student_id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '15px' }}>{student.full_name}</td>
-                      <td style={{ padding: '15px' }}>{student.class_name}</td>
-                      <td style={{ padding: '15px' }}>{student.phone_number}</td>
-                      <td style={{ padding: '15px' }}>
-                        <button onClick={() => handleDeleteStudent(student.student_id)} style={{ color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}>Delete</button>
+                      <td style={{ padding: '15px', fontWeight: '600', color: '#111827' }}>{student.full_name}</td>
+                      <td style={{ padding: '15px', color: '#4b5563' }}><span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '6px 12px', borderRadius: '12px', fontSize: '13px', fontWeight: 'bold' }}>{student.class_name}</span></td>
+                      <td style={{ padding: '15px', color: '#4b5563' }}>{student.phone_number}</td>
+                      <td style={{ padding: '15px', textAlign: 'center' }}>
+                        <button onClick={() => handleDeleteStudent(student.student_id)} style={{ padding: '8px 15px', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Delete</button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {students.length === 0 && <p style={{ textAlign: 'center', color: '#6b7280', marginTop: '20px' }}>No students found.</p>}
             </div>
           </>
         )}
 
-        {/* CLASS LECTURE */}
         {activeTab === "classLecture" && (
-          <div style={{ textAlign: 'center', padding: '50px', backgroundColor: 'white', borderRadius: '12px' }}>
-            <h1>🎥 Class Lectures</h1>
-            <a href="https://www.youtube.com/@dreamupacademy" target="_blank" style={{ color: '#ef4444', fontWeight: 'bold' }}>Visit YouTube Channel</a>
+          <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '50px', textAlign: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
+            <h1 style={{ fontSize: '32px', color: '#111827', fontWeight: 'bold', marginBottom: '15px' }}>🎥 Class Lectures</h1>
+            <p style={{ fontSize: '18px', color: '#6b7280', marginBottom: '30px' }}>Watch all recorded classes and tutorials from our official channel.</p>
+            <a href="https://www.youtube.com/@dreamupacademy" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '15px 30px', backgroundColor: '#ef4444', color: 'white', textDecoration: 'none', borderRadius: '8px', fontSize: '18px', fontWeight: 'bold' }}>Go to Dream Up Academy</a>
           </div>
         )}
 
