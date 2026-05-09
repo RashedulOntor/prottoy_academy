@@ -4,6 +4,19 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 
+// Core Founding Members (CEO & MD only)
+const coreMembers = [
+  { id: 901, name: "Md. Rashedul Islam", designation: "Founder and CEO", education: "B.Sc in CSE (studying) at Brahmaputra International University", subjects: "Math, Science, ICT", experience: "6+ Years", image: "/faculty/rashedul.jpg" },
+  { id: 902, name: "Md. Shohel Islam", designation: "Founder and MD", education: "B.A in Bangla at Govt. Asheq Mahmud College", subjects: "Bangla", experience: "12+ Years", image: "/faculty/shohel.jpg" }
+];
+
+// Other Founding Teachers
+const otherFoundingTeachers = [
+  { id: 903, name: "Md. Ratan Hasan", designation: "Instructor", education: "B.Sc in Math (studying) at Govt. Asheq Mahmud College", subjects: "Math, Science", experience: "3+ Years", image: "/faculty/ratan.jpg" },
+  { id: 904, name: "Md. Maruf Hasan", designation: "Instructor", education: "B.A in English (studying) at Govt. Asheq Mahmud College", subjects: "English", experience: "4+ Years", image: "/faculty/maruf.jpg" },
+  { id: 905, name: "Sayan Mahmud Mahi", designation: "Instructor", education: "B.Sc in Textile Engineering (studying) at Jamalpur Textile Engineering College", subjects: "Science", experience: "3+ Years", image: "/faculty/sayan.jpg" }
+];
+
 export default function StudentDashboard() {
   const { id } = useParams(); 
   const router = useRouter();
@@ -11,6 +24,9 @@ export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [studentData, setStudentData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Faculty state
+  const [faculties, setFaculties] = useState<any[]>([]);
 
   // Profile Update States
   const [isEditing, setIsEditing] = useState(false);
@@ -28,15 +44,22 @@ export default function StudentDashboard() {
     try {
       const res = await fetch(`/api/students?t=${new Date().getTime()}`);
       const data = await res.json();
-      if (data.success) {
-        const myInfo = data.data.find((s: any) => s.student_id === Number(id));
+      
+      let allStudents = [];
+      if (data.success && Array.isArray(data.data)) allStudents = data.data;
+      else if (Array.isArray(data)) allStudents = data;
+      else if (data.students && Array.isArray(data.students)) allStudents = data.students;
+
+      if (allStudents.length > 0) {
+        const myInfo = allStudents.find((s: any) => String(s.student_id) === String(id) || String(s.id) === String(id));
+        
         if (myInfo) {
           setStudentData(myInfo);
           setEditForm({
-            fullName: myInfo.full_name || "",
+            fullName: myInfo.full_name || myInfo.fullName || myInfo.name || "",
             fathersName: myInfo.fathers_name || "",
             mothersName: myInfo.mothers_name || "",
-            className: myInfo.class_name || "",
+            className: myInfo.class_name || myInfo.className || myInfo.class || "",
             address: myInfo.address || ""
           });
         }
@@ -48,8 +71,24 @@ export default function StudentDashboard() {
     }
   };
 
+  // Fetch Faculty Data (View Only)
+  const fetchFaculties = async () => {
+    try {
+      const res = await fetch(`/api/faculty?t=${new Date().getTime()}`, { cache: "no-store" });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setFaculties([...coreMembers, ...otherFoundingTeachers, ...data.data]); 
+      } else {
+        setFaculties([...coreMembers, ...otherFoundingTeachers]);
+      }
+    } catch (err) {
+      setFaculties([...coreMembers, ...otherFoundingTeachers]);
+    }
+  };
+
   useEffect(() => {
     fetchMyData();
+    fetchFaculties();
   }, [id]);
 
   const handleLogout = () => {
@@ -81,7 +120,7 @@ export default function StudentDashboard() {
     }
   };
 
-  // Handle Password Update
+  // Handle Password Update (Real Database Update)
   const handlePasswordChange = async () => {
     if (!newPassword) {
       alert("⚠️ Please type a new password!");
@@ -101,10 +140,10 @@ export default function StudentDashboard() {
       });
       const result = await res.json();
       if (result.success) {
-        alert("✅ Password updated successfully! Use this for next login.");
+        alert("✅ Password updated successfully! Old password will no longer work.");
         setNewPassword("");
       } else {
-        alert("❌ Failed to update password.");
+        alert("❌ Failed to update password. Admin may need to configure the backend API.");
       }
     } catch (err) {
       alert("❌ Something went wrong while updating password.");
@@ -120,7 +159,7 @@ export default function StudentDashboard() {
     border: '1px solid #cbd5e1',
     borderRadius: '8px',
     outline: 'none',
-    color: '#000000', // Deep Black Text
+    color: '#000000', 
     fontWeight: '500',
     backgroundColor: '#ffffff'
   };
@@ -129,9 +168,8 @@ export default function StudentDashboard() {
     return <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><h2>Loading your portal...</h2></div>;
   }
 
-  if (!studentData) {
-    return <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><h2>Student profile not found!</h2></div>;
-  }
+  const safeName = studentData?.full_name || studentData?.fullName || studentData?.name || "Student";
+  const safeClass = studentData?.class_name || studentData?.className || studentData?.class || "Your Class";
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f0f9ff', fontFamily: 'sans-serif' }}>
@@ -140,7 +178,7 @@ export default function StudentDashboard() {
       <div style={{ width: '260px', backgroundColor: '#0369a1', color: 'white', padding: '25px 20px', display: 'flex', flexDirection: 'column', boxShadow: '4px 0 10px rgba(0,0,0,0.05)' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '30px', borderBottom: '1px solid #38bdf8', paddingBottom: '20px' }}>
           <Image src="/prottoy academy logo.png" alt="Logo" width={60} height={60} style={{ borderRadius: '10px', marginBottom: '10px' }} />
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>Prottoy Academy</h2>
+          <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, textAlign: 'center' }}>Prottoy Academy</h2>
           <span style={{ fontSize: '12px', backgroundColor: '#0284c7', padding: '3px 8px', borderRadius: '10px', marginTop: '8px' }}>Student Portal</span>
         </div>
         
@@ -148,6 +186,9 @@ export default function StudentDashboard() {
           <li onClick={() => setActiveTab("dashboard")} style={{ cursor: 'pointer', padding: '12px 15px', backgroundColor: activeTab === "dashboard" ? '#0284c7' : 'transparent', borderRadius: '8px', fontWeight: '500', transition: '0.2s' }}>📊 Dashboard</li>
           <li onClick={() => setActiveTab("profile")} style={{ cursor: 'pointer', padding: '12px 15px', backgroundColor: activeTab === "profile" ? '#0284c7' : 'transparent', borderRadius: '8px', fontWeight: '500', transition: '0.2s' }}>👤 My Profile</li>
           <li onClick={() => setActiveTab("classes")} style={{ cursor: 'pointer', padding: '12px 15px', backgroundColor: activeTab === "classes" ? '#0284c7' : 'transparent', borderRadius: '8px', fontWeight: '500', transition: '0.2s' }}>🎥 Class Lectures</li>
+          
+          <li onClick={() => setActiveTab("faculty")} style={{ cursor: 'pointer', padding: '12px 15px', backgroundColor: activeTab === "faculty" ? '#0284c7' : 'transparent', borderRadius: '8px', fontWeight: '500', transition: '0.2s' }}>👨‍🏫 Faculty List</li>
+          
           <li onClick={() => setActiveTab("results")} style={{ cursor: 'pointer', padding: '12px 15px', backgroundColor: activeTab === "results" ? '#0284c7' : 'transparent', borderRadius: '8px', fontWeight: '500', transition: '0.2s' }}>🏆 Exam Results</li>
           <li onClick={() => setActiveTab("payments")} style={{ cursor: 'pointer', padding: '12px 15px', backgroundColor: activeTab === "payments" ? '#0284c7' : 'transparent', borderRadius: '8px', fontWeight: '500', transition: '0.2s' }}>💳 My Payments</li>
         </ul>
@@ -160,13 +201,13 @@ export default function StudentDashboard() {
         
         {activeTab === "dashboard" && (
           <>
-            <h1 style={{ fontSize: '32px', color: '#0f172a', marginBottom: '8px', fontWeight: 'bold' }}>Welcome, {studentData.full_name}!</h1>
+            <h1 style={{ fontSize: '32px', color: '#0f172a', marginBottom: '8px', fontWeight: 'bold' }}>Welcome, {safeName}!</h1>
             <p style={{ color: '#020202', marginBottom: '35px' }}>Academic Overview</p>
             
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '25px' }}>
               <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', borderLeft: '6px solid #f59e0b', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ color: '#64748b', fontSize: '16px', marginBottom: '10px' }}>Your Class</h3>
-                <p style={{ fontSize: '32px', fontWeight: 'bold', color: '#0f172a' }}>{studentData.class_name}</p>
+                <p style={{ fontSize: '32px', fontWeight: 'bold', color: '#0f172a' }}>{safeClass}</p>
               </div>
               <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', borderLeft: '6px solid #ef4444', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ color: '#64748b', fontSize: '16px', marginBottom: '10px' }}>Due Payments</h3>
@@ -180,7 +221,47 @@ export default function StudentDashboard() {
           </>
         )}
 
-        {activeTab === "profile" && (
+        {/* FACULTY LIST SECTION (VIEW ONLY) */}
+        {activeTab === "faculty" && (
+          <>
+            <h1 style={{ fontSize: '32px', color: '#0f172a', fontWeight: 'bold', marginBottom: '10px' }}>Our Honorable Faculty</h1>
+            <p style={{ color: '#64748b', marginBottom: '35px' }}>Meet the experienced and dedicated teachers of Prottoy Academy who are committed to building your bright future.</p>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '25px', marginBottom: '50px' }}>
+              {faculties.map((teacher) => (
+                <div key={teacher.id} style={{ backgroundColor: 'white', borderRadius: '15px', overflow: 'hidden', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+                  
+                  <div style={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: '#f1f5f9', position: 'relative', overflow: 'hidden' }}>
+                    <img 
+                      src={teacher.image || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} 
+                      alt={teacher.name} 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} 
+                    />
+                    {(teacher.id === 901 || teacher.id === 902) && (
+                      <span style={{ position: 'absolute', top: '12px', right: '12px', backgroundColor: '#f59e0b', color: 'white', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+                        ★ Core Member
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ padding: '25px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ margin: '0 0 5px 0', fontSize: '20px', color: '#0f172a', fontWeight: 'bold' }}>{teacher.name}</h3>
+                    <p style={{ margin: '0 0 15px 0', color: '#0284c7', fontWeight: '700', fontSize: '14px' }}>{teacher.designation}</p>
+                    
+                    <div style={{ fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>
+                      <div style={{ marginBottom: '8px' }}>🎓 <strong>Edu:</strong> {teacher.education}</div>
+                      <div style={{ marginBottom: '12px' }}>⏳ <strong>Exp:</strong> {teacher.experience}</div>
+                      <div>📚 <span style={{ backgroundColor: '#f0f9ff', padding: '4px 10px', borderRadius: '8px', fontWeight: 'bold', color: '#0369a1', border: '1px solid #bae6fd' }}>{teacher.subjects}</span></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* PROFILE TAB */}
+        {activeTab === "profile" && studentData && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
               <h1 style={{ fontSize: '32px', color: '#0f172a', fontWeight: 'bold', margin: 0 }}>My Profile</h1>
@@ -197,7 +278,7 @@ export default function StudentDashboard() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' }}>
                     <span style={{ color: '#64748b', fontWeight: '600' }}>Full Name:</span>
-                    <span style={{ color: '#0f172a', fontWeight: '500' }}>{studentData.full_name}</span>
+                    <span style={{ color: '#0f172a', fontWeight: '500' }}>{safeName}</span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' }}>
                     <span style={{ color: '#64748b', fontWeight: '600' }}>Father's Name:</span>
@@ -209,11 +290,11 @@ export default function StudentDashboard() {
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' }}>
                     <span style={{ color: '#64748b', fontWeight: '600' }}>Class:</span>
-                    <span style={{ color: '#0ea5e9', fontWeight: 'bold' }}>{studentData.class_name}</span>
+                    <span style={{ color: '#0ea5e9', fontWeight: 'bold' }}>{safeClass}</span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' }}>
                     <span style={{ color: '#64748b', fontWeight: '600' }}>Phone (Login ID):</span>
-                    <span style={{ color: '#0f172a' }}>{studentData.phone_number}</span>
+                    <span style={{ color: '#0f172a' }}>{studentData.phone_number || studentData.phone || "N/A"}</span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr' }}>
                     <span style={{ color: '#64748b', fontWeight: '600' }}>Address:</span>
@@ -295,6 +376,7 @@ export default function StudentDashboard() {
           </>
         )}
 
+        {/* OTHER TABS */}
         {activeTab === "classes" && (
           <>
             <h1 style={{ fontSize: '32px', color: '#0f172a', marginBottom: '20px', fontWeight: 'bold' }}>Class Lectures</h1>

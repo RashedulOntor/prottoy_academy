@@ -114,9 +114,20 @@ export async function PUT(request: Request) {
 
       db = await connectToDatabase();
       
-      // Update password in the users table
-      // Note: Depending on your table structure, the column might be 'id' or 'user_id'
-      await db.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, id]);
+      // ====== ফিক্স করা অংশ: ডাটাবেস কলামের নাম ম্যাচ করানো ======
+      try {
+        // প্রথমে 'id' কলাম দিয়ে আপডেট করার চেষ্টা করবে
+        await db.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, id]);
+      } catch (err) {
+        try {
+          // যদি 'id' কাজ না করে, তাহলে 'user_id' কলাম দিয়ে আপডেট করবে
+          await db.query('UPDATE users SET password = ? WHERE user_id = ?', [newPassword, id]);
+        } catch (fallbackErr) {
+          console.error("Database column error:", fallbackErr);
+          throw fallbackErr;
+        }
+      }
+      // ==============================================================
 
       return NextResponse.json({ success: true, message: 'Password updated successfully!' }, { status: 200 });
     }
