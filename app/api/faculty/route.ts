@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '../../../lib/db';
 
-// ====== এই দুটি লাইন Vercel-এর ক্যাশ (Cache) ধরে রাখা বন্ধ করবে ======
+// ====== এই তিনটি লাইন Vercel-এর ক্যাশ (Cache) পুরোপুরি বন্ধ করবে ======
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store'; // NEW: Added to force prevent caching
 export const revalidate = 0;
 
 export async function GET() {
@@ -15,7 +16,10 @@ export async function GET() {
     return NextResponse.json({ success: true, data: faculties }, { 
       status: 200,
       headers: {
-        'Cache-Control': 'no-store, max-age=0',
+        // NEW: Updated headers to force browser and Vercel to bypass cache
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       }
     });
   } catch (error) {
