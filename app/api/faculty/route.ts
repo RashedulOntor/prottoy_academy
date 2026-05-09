@@ -1,55 +1,70 @@
-import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/db"; 
+import { NextResponse } from 'next/server';
+import { connectToDatabase } from '../../../lib/db';
+
+// ====== এই দুটি লাইন Vercel-এর ক্যাশ (Cache) ধরে রাখা বন্ধ করবে ======
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET() {
+  let db;
   try {
-    const connection = await connectToDatabase();
-    // ডাটাবেস থেকে টিচারদের লিস্ট আনা হচ্ছে
-    const [faculties] = await connection.execute(
-      "SELECT * FROM faculty ORDER BY id DESC"
-    );
-    await connection.end(); // কাজ শেষে কানেকশন বন্ধ করা
-
-    return NextResponse.json({ success: true, data: faculties });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, message: error.message });
+    db = await connectToDatabase();
+    
+    const [faculties] = await db.query('SELECT * FROM faculty ORDER BY id ASC');
+    
+    return NextResponse.json({ success: true, data: faculties }, { 
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      }
+    });
+  } catch (error) {
+    return NextResponse.json({ success: false, message: 'Failed to fetch faculty' }, { status: 500 });
+  } finally {
+    if (db) await db.end();
   }
 }
 
 export async function POST(request: Request) {
+  let db;
   try {
-    const data = await request.json();
-    const { name, designation, education, subjects, experience } = data;
+    const body = await request.json();
+    const { name, designation, education, subjects, experience, image } = body;
 
-    const connection = await connectToDatabase();
-    // ডাটাবেসে নতুন টিচার অ্যাড করা হচ্ছে
-    await connection.execute(
-      "INSERT INTO faculty (name, designation, education, subjects, experience) VALUES (?, ?, ?, ?, ?)",
-      [name, designation, education, subjects, experience]
+    db = await connectToDatabase();
+
+    await db.query(
+      'INSERT INTO faculty (name, designation, education, subjects, experience, image) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, designation, education, subjects, experience, image]
     );
-    await connection.end();
 
-    return NextResponse.json({ success: true, message: "Faculty added successfully!" });
+    return NextResponse.json({ success: true, message: 'Teacher added successfully!' }, { status: 201 });
+    
   } catch (error: any) {
-    return NextResponse.json({ success: false, message: error.message });
+    return NextResponse.json({ success: false, message: 'Failed to add teacher.' }, { status: 500 });
+  } finally {
+    if (db) await db.end();
   }
 }
 
 export async function DELETE(request: Request) {
+  let db;
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
+    const id = searchParams.get('id');
 
-    const connection = await connectToDatabase();
-    // ডাটাবেস থেকে টিচার ডিলিট করা হচ্ছে
-    await connection.execute(
-      "DELETE FROM faculty WHERE id = ?",
-      [id]
-    );
-    await connection.end();
+    if (!id) {
+      return NextResponse.json({ success: false, message: 'ID is required' }, { status: 400 });
+    }
 
-    return NextResponse.json({ success: true, message: "Faculty deleted successfully!" });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, message: error.message });
+    db = await connectToDatabase();
+    await db.query('DELETE FROM faculty WHERE id = ?', [id]);
+
+    return NextResponse.json({ success: true, message: 'Teacher deleted successfully!' }, { status: 200 });
+    
+  } catch (error) {
+    return NextResponse.json({ success: false, message: 'Failed to delete teacher' }, { status: 500 });
+  } finally {
+    if (db) await db.end();
   }
 }
