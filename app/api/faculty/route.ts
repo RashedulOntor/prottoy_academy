@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '../../../lib/db';
 
-// ====== এই তিনটি লাইন Vercel-এর ক্যাশ (Cache) পুরোপুরি বন্ধ করবে ======
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store'; // NEW: Added to force prevent caching
 export const revalidate = 0;
