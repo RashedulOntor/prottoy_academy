@@ -21,13 +21,14 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const pathname = usePathname();
 
-  // স্টুডেন্টদের জন্য মেনু লিস্ট (আপনার পেজ অনুযায়ী লিংকগুলো পরিবর্তন করতে পারেন)
+ // স্টুডেন্টদের জন্য মেনু লিস্ট 
   const menuItems = [
-    { name: "My Dashboard", href: "/student", icon: "📊" },
-    { name: "Class Lectures", href: "/student/lectures", icon: "🎥" },
-    { name: "My Results", href: "/student/results", icon: "🏆" },
-    { name: "Payment History", href: "/student/payments", icon: "💳" },
-    { name: "Notices", href: "/student/notices", icon: "📢" },
+    { name: "My Dashboard", href: "?tab=dashboard", icon: "📊" },
+    { name: "My Profile", href: "?tab=profile", icon: "👤" },
+    { name: "Class Lectures", href: "?tab=classes", icon: "🎥" },
+    { name: "Faculty List", href: "?tab=faculty", icon: "👨‍🏫" },
+    { name: "Exam Results", href: "?tab=results", icon: "🏆" },
+    { name: "Payment History", href: "?tab=payments", icon: "💳" },
   ];
 
   return (
