@@ -4,11 +4,23 @@ import { connectToDatabase } from '../../../lib/db';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(request: Request) {
   let db;
   try {
+    const { searchParams } = new URL(request.url);
+    const fetchArchived = searchParams.get('archived'); // ডিলিট হওয়া স্টুডেন্টদের খোঁজার জন্য
+
     db = await connectToDatabase();
-    const [students] = await db.query('SELECT * FROM students ORDER BY student_id ASC');
+    
+    // ডিফল্টভাবে শুধু অ্যাক্টিভ স্টুডেন্টদের দেখাবে
+    let query = 'SELECT * FROM students WHERE is_archived = FALSE OR is_archived IS NULL ORDER BY student_id ASC';
+    
+    // যদি আর্কাইভ করা (ডিলিট হওয়া) স্টুডেন্টদের দেখতে চায়
+    if (fetchArchived === 'true') {
+      query = 'SELECT * FROM students WHERE is_archived = TRUE ORDER BY student_id ASC';
+    }
+
+    const [students] = await db.query(query);
     
     return NextResponse.json({ success: true, data: students }, { 
       status: 200,
@@ -65,6 +77,7 @@ export async function POST(request: Request) {
   }
 }
 
+// 🔴 UPDATE: Soft Delete Implementation (ডেটা একেবারে মুছবে না, শুধু লুকিয়ে ফেলবে)
 export async function DELETE(request: Request) {
   let db;
   try {
@@ -77,71 +90,79 @@ export async function DELETE(request: Request) {
 
     db = await connectToDatabase();
 
-    await db.query('DELETE FROM students WHERE student_id = ?', [id]);
+    // ডেটাবেস থেকে একেবারে মুছে ফেলার বদলে is_archived = TRUE করে দেওয়া হলো
+    await db.query('UPDATE students SET is_archived = TRUE WHERE student_id = ?', [id]);
     
+    // ইউজারের লগইনও ব্লক করে দেওয়া হলো (is_archived = TRUE)
     try {
-        await db.query('DELETE FROM users WHERE id = ?', [id]);
+        await db.query('UPDATE users SET is_archived = TRUE WHERE id = ?', [id]);
     } catch (e) {
         try {
-            await db.query('DELETE FROM users WHERE user_id = ?', [id]);
+            await db.query('UPDATE users SET is_archived = TRUE WHERE user_id = ?', [id]);
         } catch (err) {
-            console.log("Skipped user login deletion as table might differ.");
+            console.log("Skipped user login soft delete as table might differ.");
         }
     }
 
-    return NextResponse.json({ success: true, message: 'Student deleted successfully!' }, { status: 200 });
+    return NextResponse.json({ success: true, message: 'Student moved to archive successfully!' }, { status: 200 });
     
   } catch (error) {
-    return NextResponse.json({ success: false, message: 'Failed to delete student' }, { status: 500 });
+    return NextResponse.json({ success: false, message: 'Failed to remove student' }, { status: 500 });
   } finally {
     if (db) await db.end();
   }
 }
 
-// PUT: Update student profile details OR Security password
+// PUT: Update profile, Update Password, OR Recover Student
 export async function PUT(request: Request) {
   let db;
   try {
     const body = await request.json();
     
-    // Check if the request is specifically for password update
-    if (body.type === 'update_password') {
-      const { id, newPassword } = body;
-      
-      if (!id || !newPassword) {
-        return NextResponse.json({ success: false, message: 'Missing data for password update' }, { status: 400 });
-      }
+    // 🔴 NEW: RECOVER STUDENT (আর্কাইভ থেকে ফিরিয়ে আনা)
+    if (body.type === 'recover') {
+      const { id } = body;
+      if (!id) return NextResponse.json({ success: false, message: 'Missing ID' }, { status: 400 });
 
       db = await connectToDatabase();
       
-      // ====== ফিক্স করা অংশ: ডাটাবেস কলামের নাম ম্যাচ করানো ======
+      await db.query('UPDATE students SET is_archived = FALSE WHERE student_id = ?', [id]);
       try {
-        // প্রথমে 'id' কলাম দিয়ে আপডেট করার চেষ্টা করবে
+        await db.query('UPDATE users SET is_archived = FALSE WHERE id = ?', [id]);
+      } catch (err) {
+        try { await db.query('UPDATE users SET is_archived = FALSE WHERE user_id = ?', [id]); } catch (e) {}
+      }
+
+      return NextResponse.json({ success: true, message: 'Student recovered successfully!' }, { status: 200 });
+    }
+
+    // Update Password Logic
+    if (body.type === 'update_password') {
+      const { id, newPassword } = body;
+      if (!id || !newPassword) return NextResponse.json({ success: false, message: 'Missing data for password update' }, { status: 400 });
+
+      db = await connectToDatabase();
+      
+      try {
         await db.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, id]);
       } catch (err) {
         try {
-          // যদি 'id' কাজ না করে, তাহলে 'user_id' কলাম দিয়ে আপডেট করবে
           await db.query('UPDATE users SET password = ? WHERE user_id = ?', [newPassword, id]);
         } catch (fallbackErr) {
           console.error("Database column error:", fallbackErr);
           throw fallbackErr;
         }
       }
-      // ==============================================================
-
       return NextResponse.json({ success: true, message: 'Password updated successfully!' }, { status: 200 });
     }
 
     // Default: Handle General Profile Update
     const { id, fullName, fathersName, mothersName, className, address } = body;
 
-    if (!id) {
-      return NextResponse.json({ success: false, message: 'Student ID is required for update' }, { status: 400 });
-    }
+    if (!id) return NextResponse.json({ success: false, message: 'Student ID is required for update' }, { status: 400 });
 
     db = await connectToDatabase();
 
-    // Update detailed info in students table
     await db.query(
       'UPDATE students SET full_name = ?, fathers_name = ?, mothers_name = ?, class_name = ?, address = ? WHERE student_id = ?',
       [fullName, fathersName, mothersName, className, address, id]
