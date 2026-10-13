@@ -147,7 +147,7 @@ function StudentContent() {
     try {
       const res = await fetch('/api/students', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'update_password', id: Number(id), newPassword: newPassword }) });
       const result = await res.json();
-      if (result.success) { alert("✅ Password updated successfully! Old password will no longer work."); setNewPassword(""); } 
+      if (result.success) { alert("✅ Password updated successfully!"); setNewPassword(""); } 
       else alert("❌ Failed to update password.");
     } catch (err) { alert("❌ Something went wrong while updating password."); } finally { setPassUpdateLoading(false); }
   };
@@ -253,7 +253,7 @@ function StudentContent() {
                 <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase tracking-wider">My Payments</h3>
                 <p className="text-2xl font-black text-slate-800 flex items-center justify-between">History <span className="text-emerald-500 group-hover:translate-x-2 transition-transform">➔</span></p>
               </div>
-              <div onClick={() => window.open("https://youtube.com/@prottoyacademy", "_blank")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:-translate-y-1 transition-all cursor-pointer group">
+              <div onClick={() => window.open("https://www.youtube.com/@DreamUpAcademy", "_blank")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:-translate-y-1 transition-all cursor-pointer group">
                 <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center text-red-600 text-2xl mb-6 group-hover:scale-110 transition-transform">🎥</div>
                 <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase tracking-wider">Class Lectures</h3>
                 <p className="text-2xl font-black text-slate-800 flex items-center justify-between">Watch <span className="text-red-500 group-hover:translate-x-2 transition-transform">➔</span></p>
@@ -389,8 +389,8 @@ function StudentContent() {
             <p className="text-7xl mb-6 drop-shadow-md">📺</p>
             <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4 leading-tight">Watch Your Classes Online<br/><span className="text-red-600">Totally FREE!</span></h2>
             <p className="text-slate-500 font-medium text-lg mb-10">Access all recorded lectures, tutorials, and guidelines from our official channel.</p>
-            <a href="https://youtube.com/@prottoyacademy" target="_blank" rel="noopener noreferrer" className="inline-block px-10 py-5 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl transition-all shadow-xl hover:scale-105 text-lg">
-              ▶️ Open Prottoy Academy YouTube
+            <a href="https://www.youtube.com/@DreamUpAcademy" target="_blank" rel="noopener noreferrer" className="inline-block px-10 py-5 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl transition-all shadow-xl hover:scale-105 text-lg">
+              ▶️ Open DreamUp Academy YouTube
             </a>
           </div>
         )}

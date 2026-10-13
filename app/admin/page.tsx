@@ -676,8 +676,8 @@ function AdminContent() {
         <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-gray-100 animate-fade-in max-w-3xl mx-auto mt-10">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">🎥 Class Lectures</h1>
           <p className="text-lg text-gray-500 mb-8">Watch all recorded classes and tutorials from our official channel.</p>
-          <a href="https://www.youtube.com/@prottoyacademy" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-8 py-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all hover:scale-105 shadow-md">
-            ▶️ Go to Prottoy Academy YouTube
+          <a href="https://www.youtube.com/@DreamUpAcademy" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-8 py-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all hover:scale-105 shadow-md">
+            ▶️ Go to DreamUp Academy YouTube
           </a>
         </div>
       )}
