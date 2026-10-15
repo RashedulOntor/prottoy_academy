@@ -2,32 +2,34 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '../../../lib/db';
 
 export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
+export const revalidate = 0;
 
-// শতকরা হিসাব করে গ্রেডিং লজিক
-function calculateGrade(obtained: number, fullMarks: number) {
-  const percentage = (obtained / fullMarks) * 100;
-  
-  if (percentage >= 80) return { point: 5.0, grade: 'A+' };
-  if (percentage >= 70) return { point: 4.0, grade: 'A' };
-  if (percentage >= 60) return { point: 3.5, grade: 'A-' };
-  if (percentage >= 50) return { point: 3.0, grade: 'B' };
-  if (percentage >= 40) return { point: 2.0, grade: 'C' };
-  if (percentage >= 33) return { point: 1.0, grade: 'D' };
-  return { point: 0.0, grade: 'F' };
-}
-
-// 🔴 Helper function to safely parse incoming JSON strings
-const parseIncomingSubjects = (subjectsData: any) => {
-  if (typeof subjectsData === 'string') {
+const parseSubjectsSafe = (data: any) => {
+  if (!data) return [];
+  let parsedData = data;
+  let attempts = 0;
+  while (typeof parsedData === 'string' && attempts < 3) {
     try {
-      return JSON.parse(subjectsData);
-    } catch (e) {
-      console.error("Failed to parse subjects string in API:", e);
-      return [];
-    }
+      if (parsedData.trim() === '') break;
+      parsedData = JSON.parse(parsedData);
+    } catch (e) { break; }
+    attempts++;
   }
-  return Array.isArray(subjectsData) ? subjectsData : [];
+  if (typeof parsedData === 'object' && parsedData !== null && !Array.isArray(parsedData)) {
+    parsedData = Object.values(parsedData);
+  }
+  return Array.isArray(parsedData) ? parsedData : [];
+};
+
+const getGradeAndPoint = (obtained: number, fullMarks: number = 100) => {
+  const pct = fullMarks > 0 ? (obtained / fullMarks) * 100 : 0;
+  if (pct >= 80) return { grade: 'A+', point: 5.0 };
+  if (pct >= 70) return { grade: 'A', point: 4.0 };
+  if (pct >= 60) return { grade: 'A-', point: 3.5 };
+  if (pct >= 50) return { grade: 'B', point: 3.0 };
+  if (pct >= 40) return { grade: 'C', point: 2.0 };
+  if (pct >= 33) return { grade: 'D', point: 1.0 };
+  return { grade: 'F', point: 0.0 };
 };
 
 export async function GET(request: Request) {
@@ -37,26 +39,37 @@ export async function GET(request: Request) {
     const studentId = searchParams.get('studentId');
 
     db = await connectToDatabase();
-    let query = "";
+
+    let query = `
+      SELECT r.*, s.full_name, s.class_name 
+      FROM exam_results r 
+      LEFT JOIN students s ON r.student_id = s.student_id 
+      ORDER BY r.id DESC
+    `;
     let params: any[] = [];
 
     if (studentId) {
-      // স্টুডেন্টের জন্য শুধু তার নিজের রেজাল্ট
-      query = 'SELECT id, student_id, exam_name, marks_data AS subjects, total_marks, gpa, grade, created_at FROM exam_results WHERE student_id = ? ORDER BY created_at DESC';
-      params = [studentId];
-    } else {
-      // অ্যাডমিনের জন্য সব স্টুডেন্টের নামসহ রেজাল্ট
       query = `
-        SELECT r.id, r.student_id, r.exam_name, r.marks_data AS subjects, r.total_marks, r.gpa, r.grade, r.created_at, s.full_name, s.class_name 
+        SELECT r.*, s.full_name, s.class_name 
         FROM exam_results r 
-        JOIN students s ON r.student_id = s.student_id 
-        ORDER BY r.created_at DESC`;
+        LEFT JOIN students s ON r.student_id = s.student_id 
+        WHERE r.student_id = ? 
+        ORDER BY r.id DESC
+      `;
+      params = [studentId];
     }
 
-    const [rows] = await db.query(query, params);
-    return NextResponse.json({ success: true, data: rows });
+    const [rows]: any = await db.query(query, params);
+
+    const formatted = rows.map((row: any) => ({
+      ...row,
+      subjects: row.marks_data || row.subjects,
+      marks_data: row.marks_data || row.subjects
+    }));
+
+    return NextResponse.json({ success: true, data: formatted }, { status: 200 });
   } catch (error) {
-    console.error("Database fetch error:", error);
+    console.error('GET /api/results error:', error);
     return NextResponse.json({ success: false, message: 'Failed to fetch results' }, { status: 500 });
   } finally {
     if (db) await db.end();
@@ -67,156 +80,98 @@ export async function POST(request: Request) {
   let db;
   try {
     const body = await request.json();
-    const { student_id, exam_name, subjects } = body; 
+    const { student_id, exam_name, subjects } = body;
 
-    // 🔴 FIX: স্ট্রিং বা অবজেক্ট যাই আসুক, তাকে অ্যারে বানাবে
-    const parsedSubjects = parseIncomingSubjects(subjects);
-
-    if (!parsedSubjects || parsedSubjects.length === 0) {
-      return NextResponse.json({ success: false, message: 'No subjects provided or bad format!' }, { status: 400 });
+    if (!student_id || !exam_name || !subjects) {
+      return NextResponse.json({ success: false, message: 'Missing required fields' }, { status: 400 });
     }
 
-    let total_marks = 0;
-    let total_points = 0;
-    let fail_flag = false;
-    
-    const processedSubjects = parsedSubjects.map((sub: any) => {
-      const fullMarks = Number(sub.fullMarks) || 100;
-      const obtained = Number(sub.obtained) || 0;
-      
-      const { point, grade } = calculateGrade(obtained, fullMarks);
-      
-      total_marks += obtained;
-      total_points += point;
-      
-      if (point === 0) fail_flag = true; 
+    const parsedSubs = parseSubjectsSafe(subjects);
+    if (parsedSubs.length === 0) {
+      return NextResponse.json({ success: false, message: 'At least one subject is required' }, { status: 400 });
+    }
 
-      // 🔴 FIX: ফ্রন্টএন্ডে যেন ঠিকমত ডেটা দেখায় তাই properties গুলো match করানো হলো
+    let totalMarks = 0;
+    let totalPoints = 0;
+    let isFailed = false;
+
+    // 🔴 CQ, MCQ, PR এবং Highest Marks ডাটাবেসে অবিকল সেভ রাখা হচ্ছে
+    const processedSubjects = parsedSubs.map((sub: any) => {
+      const full = Number(sub.fullMarks ?? sub.full_marks ?? 100);
+      const cqVal = sub.cq !== undefined && sub.cq !== "" && sub.cq !== "-" ? Number(sub.cq) : "";
+      const mcqVal = sub.mcq !== undefined && sub.mcq !== "" && sub.mcq !== "-" ? Number(sub.mcq) : "";
+      const prVal = sub.pr !== undefined && sub.pr !== "" && sub.pr !== "-" ? Number(sub.pr) : "";
+
+      const hasParts = cqVal !== "" || mcqVal !== "" || prVal !== "";
+      const obt = hasParts ? (Number(cqVal) || 0) + (Number(mcqVal) || 0) + (Number(prVal) || 0) : Number(sub.obtained ?? sub.obtained_marks ?? 0);
+      const highest = sub.highestMarks !== undefined && sub.highestMarks !== "" ? Number(sub.highestMarks) : obt;
+
+      const { grade, point } = getGradeAndPoint(obt, full);
+
+      totalMarks += obt;
+      totalPoints += point;
+      if (grade === 'F') isFailed = true;
+
       return {
-        name: sub.name || sub.subject_name || "Unknown", 
-        fullMarks: fullMarks,
-        obtained: obtained,
-        grade: grade,
-        point: point
+        name: sub.name || sub.subject_name || 'Subject',
+        subject_name: sub.name || sub.subject_name || 'Subject',
+        fullMarks: full,
+        full_marks: full,
+        highestMarks: highest,
+        highest_marks: highest,
+        cq: cqVal !== "" ? cqVal : "-",
+        mcq: mcqVal !== "" ? mcqVal : "-",
+        pr: prVal !== "" ? prVal : "-",
+        obtained: obt,
+        obtained_marks: obt,
+        grade,
+        gp: point.toFixed(2)
       };
     });
 
-    let gpa = 0.00;
-    let final_grade = 'F';
+    const rawGpa = isFailed ? 0.0 : totalPoints / processedSubjects.length;
+    const finalGpa = Number(rawGpa.toFixed(2));
+    let finalGrade = 'F';
 
-    if (!fail_flag && parsedSubjects.length > 0) {
-      gpa = total_points / parsedSubjects.length;
-      
-      if (gpa === 5.0) final_grade = 'A+';
-      else if (gpa >= 4.0) final_grade = 'A';
-      else if (gpa >= 3.5) final_grade = 'A-';
-      else if (gpa >= 3.0) final_grade = 'B';
-      else if (gpa >= 2.0) final_grade = 'C';
-      else if (gpa >= 1.0) final_grade = 'D';
+    if (!isFailed) {
+      if (finalGpa >= 5.0) finalGrade = 'A+';
+      else if (finalGpa >= 4.0) finalGrade = 'A';
+      else if (finalGpa >= 3.5) finalGrade = 'A-';
+      else if (finalGpa >= 3.0) finalGrade = 'B';
+      else if (finalGpa >= 2.0) finalGrade = 'C';
+      else if (finalGpa >= 1.0) finalGrade = 'D';
     }
 
     db = await connectToDatabase();
-    
+
     await db.query(
       'INSERT INTO exam_results (student_id, exam_name, marks_data, total_marks, gpa, grade) VALUES (?, ?, ?, ?, ?, ?)',
-      [student_id, exam_name, JSON.stringify(processedSubjects), total_marks, gpa.toFixed(2), final_grade]
+      [student_id, exam_name, JSON.stringify(processedSubjects), totalMarks, finalGpa, finalGrade]
     );
 
     return NextResponse.json({ success: true, message: 'Result published successfully!' }, { status: 201 });
-    
-  } catch (error) {
-    console.error("Result Entry Error:", error);
-    return NextResponse.json({ success: false, message: 'Failed to add result.' }, { status: 500 });
+  } catch (error: any) {
+    console.error('POST /api/results error:', error);
+    return NextResponse.json({ success: false, message: error.message || 'Failed to publish result' }, { status: 500 });
   } finally {
     if (db) await db.end();
   }
 }
 
-// DELETE Method for Deleting Results
 export async function DELETE(request: Request) {
-    let db;
-    try {
-        const { searchParams } = new URL(request.url);
-        const id = searchParams.get('id');
+  let db;
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ success: false, message: 'Result ID required' }, { status: 400 });
 
-        if (!id) return NextResponse.json({ success: false, message: 'Result ID is required' }, { status: 400 });
+    db = await connectToDatabase();
+    await db.query('DELETE FROM exam_results WHERE id = ?', [id]);
 
-        db = await connectToDatabase();
-        await db.query('DELETE FROM exam_results WHERE id = ?', [id]);
-
-        return NextResponse.json({ success: true, message: 'Result deleted successfully!' });
-    } catch (error) {
-        console.error("Result Delete Error:", error);
-        return NextResponse.json({ success: false, message: 'Failed to delete result' }, { status: 500 });
-    } finally {
-        if (db) await db.end();
-    }
-}
-
-// PUT Method for Updating Results
-export async function PUT(request: Request) {
-    let db;
-    try {
-      const body = await request.json();
-      const { id, student_id, exam_name, subjects } = body; 
-  
-      const parsedSubjects = parseIncomingSubjects(subjects);
-
-      if (!id || !parsedSubjects || parsedSubjects.length === 0) {
-        return NextResponse.json({ success: false, message: 'Invalid update data!' }, { status: 400 });
-      }
-  
-      let total_marks = 0;
-      let total_points = 0;
-      let fail_flag = false;
-      
-      const processedSubjects = parsedSubjects.map((sub: any) => {
-        const fullMarks = Number(sub.fullMarks || sub.full_marks) || 100;
-        const obtained = Number(sub.obtained || sub.obtained_marks) || 0;
-        
-        const { point, grade } = calculateGrade(obtained, fullMarks);
-        
-        total_marks += obtained;
-        total_points += point;
-        
-        if (point === 0) fail_flag = true; 
-  
-        return {
-          name: sub.name || sub.subject_name || "Unknown", 
-          fullMarks: fullMarks,
-          obtained: obtained,
-          grade: grade,
-          point: point
-        };
-      });
-  
-      let gpa = 0.00;
-      let final_grade = 'F';
-  
-      if (!fail_flag && parsedSubjects.length > 0) {
-        gpa = total_points / parsedSubjects.length;
-        
-        if (gpa === 5.0) final_grade = 'A+';
-        else if (gpa >= 4.0) final_grade = 'A';
-        else if (gpa >= 3.5) final_grade = 'A-';
-        else if (gpa >= 3.0) final_grade = 'B';
-        else if (gpa >= 2.0) final_grade = 'C';
-        else if (gpa >= 1.0) final_grade = 'D';
-      }
-  
-      db = await connectToDatabase();
-      
-      await db.query(
-        'UPDATE exam_results SET exam_name = ?, marks_data = ?, total_marks = ?, gpa = ?, grade = ? WHERE id = ?',
-        [exam_name, JSON.stringify(processedSubjects), total_marks, gpa.toFixed(2), final_grade, id]
-      );
-  
-      return NextResponse.json({ success: true, message: 'Result updated successfully!' });
-      
-    } catch (error) {
-      console.error("Result Update Error:", error);
-      return NextResponse.json({ success: false, message: 'Failed to update result.' }, { status: 500 });
-    } finally {
-      if (db) await db.end();
-    }
+    return NextResponse.json({ success: true, message: 'Result deleted successfully!' }, { status: 200 });
+  } catch (error) {
+    return NextResponse.json({ success: false, message: 'Failed to delete result' }, { status: 500 });
+  } finally {
+    if (db) await db.end();
+  }
 }
