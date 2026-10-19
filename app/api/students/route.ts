@@ -8,14 +8,14 @@ export async function GET(request: Request) {
   let db;
   try {
     const { searchParams } = new URL(request.url);
-    const fetchArchived = searchParams.get('archived'); // ডিলিট হওয়া স্টুডেন্টদের খোঁজার জন্য
+    const fetchArchived = searchParams.get('archived'); // ডিলিট হওয়া স্টুডেন্টদের খোঁজার জন্য
 
     db = await connectToDatabase();
     
     // ডিফল্টভাবে শুধু অ্যাক্টিভ স্টুডেন্টদের দেখাবে
     let query = 'SELECT * FROM students WHERE is_archived = FALSE OR is_archived IS NULL ORDER BY student_id ASC';
     
-    // যদি আর্কাইভ করা (ডিলিট হওয়া) স্টুডেন্টদের দেখতে চায়
+    // যদি আর্কাইভ করা (ডিলিট হওয়া) স্টুডেন্টদের দেখতে চায়
     if (fetchArchived === 'true') {
       query = 'SELECT * FROM students WHERE is_archived = TRUE ORDER BY student_id ASC';
     }
@@ -39,7 +39,8 @@ export async function POST(request: Request) {
   let db;
   try {
     const body = await request.json();
-    const { fullName, fathersName, mothersName, className, phone, address } = body;
+    // 🔴 UPDATE: Added profile_image
+    const { fullName, fathersName, mothersName, className, phone, address, profile_image } = body;
 
     // Auto-generate username (using phone number) and default password
     const generatedUsername = phone;
@@ -59,10 +60,11 @@ export async function POST(request: Request) {
 
     const newUserId = userResult.insertId;
 
-    // 2. Insert detailed profile into students table including parents' names
+    // 2. Insert detailed profile into students table including profile_image
+    // 🔴 UPDATE: Query modified to save profile_image
     await db.query(
-      'INSERT INTO students (student_id, full_name, fathers_name, mothers_name, class_name, phone_number, address) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [newUserId, fullName, fathersName, mothersName, className, phone, address]
+      'INSERT INTO students (student_id, full_name, fathers_name, mothers_name, class_name, phone_number, address, profile_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [newUserId, fullName, fathersName, mothersName, className, phone, address, profile_image || null]
     );
 
     return NextResponse.json({ success: true, message: 'Student registered! Login ID is their phone number.' }, { status: 201 });
@@ -77,7 +79,7 @@ export async function POST(request: Request) {
   }
 }
 
-// 🔴 UPDATE: Soft Delete Implementation (ডেটা একেবারে মুছবে না, শুধু লুকিয়ে ফেলবে)
+// Soft Delete Implementation (ডেটা একেবারে মুছবে না, শুধু লুকিয়ে ফেলবে)
 export async function DELETE(request: Request) {
   let db;
   try {
@@ -90,10 +92,10 @@ export async function DELETE(request: Request) {
 
     db = await connectToDatabase();
 
-    // ডেটাবেস থেকে একেবারে মুছে ফেলার বদলে is_archived = TRUE করে দেওয়া হলো
+    // ডেটাবেস থেকে একেবারে মুছে ফেলার বদলে is_archived = TRUE করে দেওয়া হলো
     await db.query('UPDATE students SET is_archived = TRUE WHERE student_id = ?', [id]);
     
-    // ইউজারের লগইনও ব্লক করে দেওয়া হলো (is_archived = TRUE)
+    // ইউজারের লগইনও ব্লক করে দেওয়া হলো (is_archived = TRUE)
     try {
         await db.query('UPDATE users SET is_archived = TRUE WHERE id = ?', [id]);
     } catch (e) {
@@ -113,13 +115,13 @@ export async function DELETE(request: Request) {
   }
 }
 
-// PUT: Update profile, Update Password, OR Recover Student
+// PUT: Update profile, Update Password, Update Image OR Recover Student
 export async function PUT(request: Request) {
   let db;
   try {
     const body = await request.json();
     
-    // 🔴 NEW: RECOVER STUDENT (আর্কাইভ থেকে ফিরিয়ে আনা)
+    // RECOVER STUDENT (আর্কাইভ থেকে ফিরিয়ে আনা)
     if (body.type === 'recover') {
       const { id } = body;
       if (!id) return NextResponse.json({ success: false, message: 'Missing ID' }, { status: 400 });
@@ -154,6 +156,16 @@ export async function PUT(request: Request) {
         }
       }
       return NextResponse.json({ success: true, message: 'Password updated successfully!' }, { status: 200 });
+    }
+
+    // 🔴 NEW: Update Profile Image Logic
+    if (body.type === 'update_image') {
+      const { id, profile_image } = body;
+      if (!id || !profile_image) return NextResponse.json({ success: false, message: 'Missing data for image update' }, { status: 400 });
+
+      db = await connectToDatabase();
+      await db.query('UPDATE students SET profile_image = ? WHERE student_id = ?', [profile_image, id]);
+      return NextResponse.json({ success: true, message: 'Profile image updated successfully!' }, { status: 200 });
     }
 
     // Default: Handle General Profile Update

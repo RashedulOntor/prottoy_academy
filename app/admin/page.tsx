@@ -2,18 +2,6 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
-import Image from "next/image";
-
-const coreMembers = [
-  { id: 901, name: "Md. Rashedul Islam", designation: "Founder and CEO", education: "B.Sc in CSE (studying) at Brahmaputra International University", subjects: "Math, Science, ICT", experience: "6+ Years", image: "/faculty/rashedul.jpg" },
-  { id: 902, name: "Md. Shohel Islam", designation: "Founder and MD", education: "B.A in Bangla at Govt. Asheq Mahmud College", subjects: "Bangla", experience: "12+ Years", image: "/faculty/shohel.jpg" }
-];
-
-const otherFoundingTeachers = [
-  { id: 903, name: "Md. Ratan Hasan", designation: "Instructor", education: "B.Sc in Math (studying) at Govt. Asheq Mahmud College", subjects: "Math, Science", experience: "3+ Years", image: "/faculty/ratan.jpg" },
-  { id: 904, name: "Md. Maruf Hasan", designation: "Instructor", education: "B.A in English (studying) at Govt. Asheq Mahmud College", subjects: "English", experience: "4+ Years", image: "/faculty/maruf.jpg" },
-  { id: 905, name: "Sayan Mahmud Mahi", designation: "Instructor", education: "B.Sc in Textile Engineering (studying) at Jamalpur Textile Engineering College", subjects: "Science", experience: "3+ Years", image: "/faculty/sayan.jpg" }
-];
 
 const calculateGradeInfo = (obtained: number, fullMarks: number = 100) => {
   if (fullMarks <= 0 || obtained > fullMarks) return { grade: "INVALID", gp: "0.00" };
@@ -27,15 +15,7 @@ const calculateGradeInfo = (obtained: number, fullMarks: number = 100) => {
   return { grade: "F", gp: "0.00" };
 };
 
-const emptySubject = () => ({
-  name: "",
-  fullMarks: 100,
-  highestMarks: "",
-  cq: "",
-  mcq: "",
-  pr: "",
-  obtained: ""
-});
+const emptySubject = () => ({ name: "", fullMarks: 100, highestMarks: "", cq: "", mcq: "", pr: "", obtained: "" });
 
 function AdminContent() {
   const router = useRouter();
@@ -49,35 +29,36 @@ function AdminContent() {
   const [payments, setPayments] = useState<any[]>([]); 
   const [loadingMsg, setLoadingMsg] = useState("");
 
-  useEffect(() => {
-    if (urlTab) setActiveTab(urlTab);
-  }, [urlTab]);
+  useEffect(() => { if (urlTab) setActiveTab(urlTab); }, [urlTab]);
 
-  // Student states
   const [fullName, setFullName] = useState("");
   const [fathersName, setFathersName] = useState("");
   const [mothersName, setMothersName] = useState("");
   const [className, setClassName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [studentImage, setStudentImage] = useState("");
 
-  // Student List Filter States
   const [studentListClassFilter, setStudentListClassFilter] = useState("");
   const [studentListSearch, setStudentListSearch] = useState("");
   
-  // Manage Student Interface States
   const [manageStudent, setManageStudent] = useState<any>(null);
   const [adminResetPass, setAdminResetPass] = useState("");
+  const [updateStudentImage, setUpdateStudentImage] = useState("");
+  const [isUpdatingImage, setIsUpdatingImage] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  // Faculty & Payments & Results States
   const [fName, setFName] = useState("");
   const [fDesignation, setFDesignation] = useState("");
   const [fEducation, setFEducation] = useState("");
   const [fSubjects, setFSubjects] = useState("");
   const [fExperience, setFExperience] = useState("");
-  const [fImage, setFImage] = useState("");
+  const [fImage, setFImage] = useState(""); 
+  
+  const [manageFaculty, setManageFaculty] = useState<any>(null);
+  const [isUpdatingFaculty, setIsUpdatingFaculty] = useState(false);
+
   const [payClassFilter, setPayClassFilter] = useState("");
   const [paySearchQuery, setPaySearchQuery] = useState("");
   const [payStudentId, setPayStudentId] = useState("");
@@ -93,6 +74,57 @@ function AdminContent() {
   const [subjects, setSubjects] = useState([emptySubject()]);
   const [resultLoading, setResultLoading] = useState("");
 
+  // ==========================================
+  // 🔴 FIXED: BULLETPROOF IMAGE COMPRESSION
+  // ==========================================
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (base64: string) => void) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) { 
+      alert("⚠️ ছবির সাইজ ৫ মেগাবাইটের (5MB) নিচে দিন।"); return;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const base64String = event.target?.result as string;
+      
+      const img = new window.Image();
+      img.src = base64String;
+      
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 400; 
+          let scaleSize = 1;
+          if (img.width > MAX_WIDTH) {
+            scaleSize = MAX_WIDTH / img.width;
+          }
+          canvas.width = img.width * scaleSize;
+          canvas.height = img.height * scaleSize;
+          const ctx = canvas.getContext("2d");
+          
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            callback(canvas.toDataURL("image/jpeg", 0.7)); 
+          } else {
+            // ক্যানভাস সাপোর্ট না করলে অরিজিনাল ছবি
+            callback(base64String); 
+          }
+        } catch (e) {
+          // কম্প্রেশন এরর হলে অরিজিনাল ছবি
+          callback(base64String); 
+        }
+      };
+      
+      img.onerror = () => {
+        // ইমেজ রেন্ডার ফেইল করলেও অরিজিনাল ছবি গ্যারান্টি দিয়ে প্রিভিউতে আনবে
+        callback(base64String); 
+      };
+    };
+  };
+
   const handleAddSubject = () => setSubjects([...subjects, emptySubject()]);
   const handleRemoveSubject = (index: number) => {
     const updatedSubjects = [...subjects];
@@ -100,84 +132,47 @@ function AdminContent() {
     setSubjects(updatedSubjects);
   };
 
-  // 🔴 STRICT AUTO-CALCULATION & LIMIT GUARD FOR CQ, MCQ, PR
   const handleSubjectFieldChange = (index: number, field: string, value: string | number) => {
     const newSubs: any = [...subjects];
-
-    // Prevent negative numbers
     if (["fullMarks", "highestMarks", "cq", "mcq", "pr"].includes(field) && value !== "") {
       if (Number(value) < 0) return;
     }
-
-    // Highest marks cannot exceed Full Marks
     if (field === "highestMarks" && value !== "") {
       const full = Number(newSubs[index].fullMarks) || 100;
       if (Number(value) > full) {
-        alert(`⚠️ Highest Marks cannot be greater than Full Marks (${full})!`);
-        return;
+        alert(`⚠️ Highest Marks cannot be greater than Full Marks (${full})!`); return;
       }
     }
-
     newSubs[index][field] = value;
-
-    // Auto-calculate Total Obtained from CQ + MCQ + PR
     const cqVal = Number(newSubs[index].cq) || 0;
     const mcqVal = Number(newSubs[index].mcq) || 0;
     const prVal = Number(newSubs[index].pr) || 0;
-    const hasAnyMark = newSubs[index].cq !== "" || newSubs[index].mcq !== "" || newSubs[index].pr !== "";
-
-    if (hasAnyMark) {
-      const total = cqVal + mcqVal + prVal;
-      newSubs[index].obtained = String(total);
+    if (newSubs[index].cq !== "" || newSubs[index].mcq !== "" || newSubs[index].pr !== "") {
+      newSubs[index].obtained = String(cqVal + mcqVal + prVal);
     } else {
       newSubs[index].obtained = "";
     }
-
     setSubjects(newSubs);
   };
 
   const handlePublishResult = async () => {
-    if (!resultStudentId || !examName || subjects.length === 0) {
-      return alert("❌ Required: Select a Student, Exam Name, and add at least one Subject!");
-    }
-
-    // Validate every subject before publishing
+    if (!resultStudentId || !examName || subjects.length === 0) return alert("❌ Select a Student, Exam Name, and add Subjects!");
     for (let i = 0; i < subjects.length; i++) {
       const s = subjects[i];
       const full = Number(s.fullMarks) || 100;
       const obt = Number(s.obtained) || 0;
-
-      if (!s.name.trim()) {
-        return alert(`❌ Please enter Subject Name for Subject #${i + 1}!`);
-      }
-      if (s.obtained === "") {
-        return alert(`❌ Please enter CQ, MCQ, or Practical marks for "${s.name}"!`);
-      }
-      if (obt > full) {
-        return alert(`❌ Invalid Marks in "${s.name}": Total Obtained (${obt}) cannot be greater than Full Marks (${full})!`);
-      }
-      if (s.highestMarks !== "" && Number(s.highestMarks) > full) {
-        return alert(`❌ Invalid Highest Marks in "${s.name}": Cannot exceed Full Marks (${full})!`);
-      }
+      if (!s.name.trim()) return alert(`❌ Please enter Subject Name for Subject #${i + 1}!`);
+      if (s.obtained === "") return alert(`❌ Please enter CQ, MCQ, or Practical marks for "${s.name}"!`);
+      if (obt > full) return alert(`❌ Total Obtained (${obt}) cannot be greater than Full Marks (${full})!`);
     }
-
     setResultLoading("Publishing...");
     try {
       const enrichedSubjects = subjects.map((s) => {
         const obt = Number(s.obtained) || 0;
         const full = Number(s.fullMarks) || 100;
         const { grade, gp } = calculateGradeInfo(obt, full);
-        return {
-          ...s,
-          ca: "-",
-          obtained: obt,
-          fullMarks: full,
-          highestMarks: s.highestMarks ? Number(s.highestMarks) : obt,
-          grade,
-          gp
-        };
+        return { ...s, ca: "-", obtained: obt, fullMarks: full, highestMarks: s.highestMarks ? Number(s.highestMarks) : obt, grade, gp };
       });
-
       const res = await fetch("/api/results", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ student_id: resultStudentId, exam_name: examName, subjects: JSON.stringify(enrichedSubjects) }),
@@ -185,28 +180,24 @@ function AdminContent() {
       const result = await res.json();
       if (result.success) {
         alert("✅ Result Published Successfully!");
-        setResultStudentId(""); setExamName(""); setSubjects([emptySubject()]);
-        fetchResults();
+        setResultStudentId(""); setExamName(""); setSubjects([emptySubject()]); fetchResults();
       } else alert("❌ Error: " + result.message);
-    } catch (err) { alert("❌ Failed to publish result!"); } 
-    finally { setResultLoading(""); }
+    } catch (err) {} finally { setResultLoading(""); }
   };
 
   const fetchResults = () => {
     fetch(`/api/results?t=${new Date().getTime()}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => { if (data.success) setResultsList(data.data); })
-      .catch((err) => console.error("Failed to fetch results", err));
   };
 
   const handleDeleteResult = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this exam result?")) return;
+    if (!window.confirm("Delete this exam result?")) return;
     try {
       const res = await fetch(`/api/results?id=${id}`, { method: "DELETE" });
       const result = await res.json();
       if (result.success) { alert("✅ " + result.message); fetchResults(); } 
-      else alert("❌ Error: " + result.message);
-    } catch (err) { alert("❌ Failed to delete result."); }
+    } catch (err) {}
   };
 
   const fetchStudents = () => {
@@ -225,25 +216,23 @@ function AdminContent() {
     fetch(`/api/faculty?t=${new Date().getTime()}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => { 
-        if (data.success) setFaculties([...coreMembers, ...otherFoundingTeachers, ...data.data]); 
-        else setFaculties([...coreMembers, ...otherFoundingTeachers]);
+        if (data.success && Array.isArray(data.data)) {
+          setFaculties(data.data); 
+        } else {
+          setFaculties([]);
+        }
       })
-      .catch(() => setFaculties([...coreMembers, ...otherFoundingTeachers]));
+      .catch(() => setFaculties([]));
   };
 
   const fetchPayments = () => {
     fetch(`/api/payments?t=${new Date().getTime()}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => { if (data.success) setPayments(data.data); })
-      .catch((err) => console.error("Failed to fetch payments", err));
   };
 
   useEffect(() => { 
-    fetchStudents(); 
-    fetchArchivedStudents();
-    fetchFaculties(); 
-    fetchPayments(); 
-    fetchResults(); 
+    fetchStudents(); fetchArchivedStudents(); fetchFaculties(); fetchPayments(); fetchResults(); 
   }, []);
 
   const handleLogout = () => { window.location.href = "/"; };
@@ -252,31 +241,17 @@ function AdminContent() {
     try {
       const res = await fetch(`/api/students?id=${id}`, { method: "DELETE" });
       const result = await res.json();
-      if (result.success) { 
-        alert("✅ Student moved to archive successfully."); 
-        setManageStudent(null); 
-        fetchStudents(); 
-        fetchArchivedStudents();
-      } 
-      else alert("❌ Error: " + result.message);
-    } catch (err) { alert("❌ Failed to remove student."); }
+      if (result.success) { alert("✅ Moved to archive."); setManageStudent(null); fetchStudents(); fetchArchivedStudents(); }
+    } catch (err) {}
   };
 
   const handleRecoverStudent = async (id: number) => {
-    if (!window.confirm("Do you want to restore this student to the active list?")) return;
+    if (!window.confirm("Restore this student?")) return;
     try {
-      const res = await fetch(`/api/students`, { 
-        method: "PUT", 
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: 'recover', id: Number(id) })
-      });
+      const res = await fetch(`/api/students`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: 'recover', id: Number(id) }) });
       const result = await res.json();
-      if (result.success) {
-        alert("✅ Student restored successfully!");
-        fetchStudents();
-        fetchArchivedStudents();
-      } else alert("❌ Failed to restore student.");
-    } catch (err) { alert("❌ Something went wrong."); }
+      if (result.success) { alert("✅ Restored!"); fetchStudents(); fetchArchivedStudents(); }
+    } catch (err) {}
   };
 
   const handleRegisterStudent = async () => {
@@ -285,41 +260,47 @@ function AdminContent() {
     try {
       const res = await fetch("/api/students", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, fathersName, mothersName, className, phone, address }),
+        body: JSON.stringify({ fullName, fathersName, mothersName, className, phone, address, profile_image: studentImage }),
       });
       const result = await res.json();
       if (result.success) {
         alert("✅ " + result.message);
-        setFullName(""); setFathersName(""); setMothersName(""); setClassName(""); setPhone(""); setAddress("");
+        setFullName(""); setFathersName(""); setMothersName(""); setClassName(""); setPhone(""); setAddress(""); setStudentImage("");
         fetchStudents(); router.push("/admin?tab=studentsList");
       } else alert("❌ Error: " + result.message);
-    } catch (err) { alert("❌ Registration failed!"); } 
-    finally { setLoadingMsg(""); }
+    } catch (err) {} finally { setLoadingMsg(""); }
   };
 
-  const handleAdminPasswordReset = async () => {
-    if (!adminResetPass) return alert("⚠️ Please enter a new password for the student.");
-    if (!manageStudent) return;
-    
-    setIsResetting(true);
+  const handleUpdateStudentImageAPI = async () => {
+    if (!updateStudentImage || !manageStudent) return alert("⚠️ Please select an image!");
+    setIsUpdatingImage(true);
     try {
       const res = await fetch('/api/students', { 
-        method: 'PUT', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ type: 'update_password', id: Number(manageStudent.student_id), newPassword: adminResetPass }) 
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ type: 'update_image', id: Number(manageStudent.student_id), profile_image: updateStudentImage }) 
       });
       const result = await res.json();
       if (result.success) { 
-        alert(`✅ Password successfully changed for ${manageStudent.full_name}!`); 
-        setAdminResetPass(""); 
-      } 
-      else alert("❌ Failed to reset password.");
-    } catch (err) { alert("❌ Something went wrong."); } 
-    finally { setIsResetting(false); }
+        alert(`✅ Image updated!`); setUpdateStudentImage(""); fetchStudents(); 
+        setManageStudent({...manageStudent, profile_image: updateStudentImage}); 
+      }
+    } catch (err) {} finally { setIsUpdatingImage(false); }
+  };
+
+  const handleAdminPasswordReset = async () => {
+    if (!adminResetPass || !manageStudent) return;
+    setIsResetting(true);
+    try {
+      const res = await fetch('/api/students', { 
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ type: 'update_password', id: Number(manageStudent.student_id), newPassword: adminResetPass }) 
+      });
+      if ((await res.json()).success) { alert(`✅ Password changed!`); setAdminResetPass(""); }
+    } catch (err) {} finally { setIsResetting(false); }
   };
 
   const handleRegisterFaculty = async () => {
-    if (!fName || !fDesignation || !fSubjects) return alert("❌ Required: Name, Designation, and Subjects!");
+    if (!fName || !fDesignation) return alert("❌ Required: Name and Designation!");
     setLoadingMsg("Adding Teacher...");
     try {
       const res = await fetch("/api/faculty", {
@@ -329,45 +310,53 @@ function AdminContent() {
       const result = await res.json();
       if (result.success) {
         alert("✅ Teacher added successfully!");
-        setFName(""); setFDesignation(""); setFEducation(""); setFSubjects(""); setFExperience(""); setFImage("");
-        fetchFaculties(); 
+        setFName(""); setFDesignation(""); setFEducation(""); setFSubjects(""); setFExperience(""); setFImage(""); fetchFaculties(); 
       } else alert("❌ Error: " + result.message);
-    } catch (err) { alert("❌ Failed to add teacher!"); } 
-    finally { setLoadingMsg(""); }
+    } catch (err) {} finally { setLoadingMsg(""); }
+  };
+
+  const handleUpdateFacultyDetails = async () => {
+    setIsUpdatingFaculty(true);
+    try {
+      const res = await fetch('/api/faculty', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'update_details', ...manageFaculty })
+      });
+      const result = await res.json();
+      if (result.success) { alert("✅ Faculty details updated!"); fetchFaculties(); } 
+    } catch (err) {} finally { setIsUpdatingFaculty(false); }
+  };
+
+  const handleUpdateFacultyImageAPI = async (base64String: string) => {
+    try {
+      const res = await fetch('/api/faculty', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'update_image', id: manageFaculty.id, image: base64String })
+      });
+      const result = await res.json();
+      if (result.success) { alert("✅ Image updated!"); setManageFaculty({...manageFaculty, image: base64String}); fetchFaculties(); }
+    } catch (err) {} 
   };
 
   const handleDeleteFaculty = async (id: number) => {
-    if (id === 901 || id === 902) return alert("⚠️ This is a Core Founding Member! You cannot delete them.");
-    if (id >= 903 && id <= 905) {
-      if (!window.confirm("Are you sure you want to delete this founding teacher?")) return;
-      setFaculties(faculties.filter(f => f.id !== id));
-      alert("✅ Teacher removed."); return;
-    }
-    if (!window.confirm("Are you sure you want to delete this teacher?")) return;
+    if (!window.confirm("Are you sure you want to delete this teacher permanently?")) return;
     try {
       const res = await fetch(`/api/faculty?id=${id}`, { method: "DELETE" });
       const result = await res.json();
-      if (result.success) { alert("✅ " + result.message); fetchFaculties(); } 
-      else alert("❌ Error: " + result.message);
-    } catch (err) { alert("❌ Failed to delete teacher."); }
+      if (result.success) { alert("✅ Deleted."); setManageFaculty(null); fetchFaculties(); } 
+    } catch (err) {}
   };
 
   const handleRecordPayment = async () => {
-    if (!payStudentId || !payAmount || !payPurpose) return alert("❌ Required: Select a Student, Amount, and Purpose!");
+    if (!payStudentId || !payAmount || !payPurpose) return alert("❌ Required fields missing!");
     setPayLoading("Recording...");
     try {
       const res = await fetch("/api/payments", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ student_id: payStudentId, amount: payAmount, payment_purpose: payPurpose, payment_status: payStatus }),
       });
-      const result = await res.json();
-      if (result.success) {
-        alert("✅ Payment recorded successfully!");
-        setPayStudentId(""); setPayAmount(""); setPayPurpose(""); setPayStatus("Paid"); setPaySearchQuery("");
-        fetchPayments(); 
-      } else alert("❌ Error: " + result.message);
-    } catch (err) { alert("❌ Failed to record payment!"); } 
-    finally { setPayLoading(""); }
+      if ((await res.json()).success) { alert("✅ Recorded!"); setPayStudentId(""); setPayAmount(""); setPayPurpose(""); fetchPayments(); }
+    } catch (err) {} finally { setPayLoading(""); }
   };
 
   const filteredStudentsForPayment = students.filter(std => {
@@ -382,21 +371,13 @@ function AdminContent() {
     return matchClass && matchSearch;
   });
 
-  const getStudentInfo = (id: any) => {
-    const s = students.find(st => st.student_id == id);
-    return s ? `${s.full_name} (${s.class_name})` : `ID: ${id}`;
-  };
-
   const inputClass = "w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white text-slate-900 font-bold shadow-sm text-base";
   const numberBoxClass = "w-full px-3 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all bg-white text-slate-900 font-black text-center text-base shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
-  // Check if any subject exceeds full marks
   const hasAnyExceededError = subjects.some(s => (Number(s.obtained) || 0) > (Number(s.fullMarks) || 100));
 
   return (
     <div className="max-w-7xl mx-auto w-full font-sans bg-[#f8fafc] min-h-screen text-slate-900">
-      
-      {/* Top Header with Logout */}
       <div className="flex justify-between items-center bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
         <div>
           <h2 className="text-xl md:text-2xl font-black text-slate-800">Admin Portal</h2>
@@ -409,16 +390,10 @@ function AdminContent() {
 
       {activeTab !== "dashboard" && (
         <div className="mb-6">
-          <button
-            onClick={() => router.push("?tab=dashboard")}
-            className="no-print px-5 py-2.5 bg-[#0f172a] text-white hover:bg-slate-800 font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg w-fit active:scale-95"
-          >
-            ⬅ Back to Dashboard
-          </button>
+          <button onClick={() => router.push("?tab=dashboard")} className="px-5 py-2.5 bg-[#0f172a] text-white hover:bg-slate-800 font-bold rounded-xl shadow-lg active:scale-95">⬅ Back to Dashboard</button>
         </div>
       )}
 
-      {/* DASHBOARD */}
       {activeTab === "dashboard" && (
         <div className="animate-fade-in">
           <div className="relative bg-[#0a192f] text-white rounded-[2rem] p-8 md:p-12 mb-10 overflow-hidden shadow-2xl border border-slate-800">
@@ -428,33 +403,15 @@ function AdminContent() {
               <p className="text-slate-400 text-base md:text-lg max-w-xl font-medium">Manage students, faculties, payments, and exam results securely from this portal.</p>
             </div>
           </div>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div onClick={() => router.push("/admin?tab=studentsList")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer group">
-              <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 text-2xl mb-6">📚</div>
-              <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase tracking-wider">Total Students</h3>
-              <p className="text-4xl font-black text-slate-800">{students.length}</p>
-            </div>
-            <div onClick={() => router.push("/admin?tab=facultyList")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer group">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 text-2xl mb-6">👨‍🏫</div>
-              <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase tracking-wider">Total Faculty</h3>
-              <p className="text-4xl font-black text-slate-800">{faculties.length}</p>
-            </div>
-            <div onClick={() => router.push("/admin?tab=examResults")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer group">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 text-2xl mb-6">🏆</div>
-              <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase tracking-wider">Exam Results</h3>
-              <p className="text-xl font-black text-indigo-600 mt-2">Publish & View</p>
-            </div>
-            <div onClick={() => router.push("/admin?tab=payments")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer group">
-              <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 text-2xl mb-6">💳</div>
-              <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase tracking-wider">Payments</h3>
-              <p className="text-xl font-black text-amber-500 mt-2">{payments.length} Records</p>
-            </div>
+            <div onClick={() => router.push("/admin?tab=studentsList")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm cursor-pointer hover:-translate-y-1 transition-all"><h3 className="text-slate-500 font-bold">Total Students</h3><p className="text-4xl font-black">{students.length}</p></div>
+            <div onClick={() => router.push("/admin?tab=facultyList")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm cursor-pointer hover:-translate-y-1 transition-all"><h3 className="text-slate-500 font-bold">Total Faculty</h3><p className="text-4xl font-black">{faculties.length}</p></div>
+            <div onClick={() => router.push("/admin?tab=examResults")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm cursor-pointer hover:-translate-y-1 transition-all"><h3 className="text-slate-500 font-bold">Exam Results</h3><p className="text-xl font-black text-indigo-600">Publish & View</p></div>
+            <div onClick={() => router.push("/admin?tab=payments")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm cursor-pointer hover:-translate-y-1 transition-all"><h3 className="text-slate-500 font-bold">Payments</h3><p className="text-xl font-black text-amber-500">{payments.length} Records</p></div>
           </div>
         </div>
       )}
 
-      {/* STUDENTS LIST & MANAGE */}
       {activeTab === "studentsList" && (
         <div className="animate-fade-in max-w-6xl mx-auto">
           {manageStudent ? (
@@ -462,55 +419,53 @@ function AdminContent() {
               {showDeleteModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
                   <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center">
-                    <div className="w-20 h-20 bg-red-50 border-4 border-red-100 text-red-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">🗑️</div>
                     <h2 className="text-2xl font-black text-slate-900 mb-2">Are you sure?</h2>
-                    <p className="text-slate-500 mb-8 font-medium">
-                      You are about to remove <strong>{manageStudent.full_name}</strong>. Their account will be archived and can be restored anytime.
-                    </p>
+                    <p className="text-slate-500 mb-8 font-medium">You are about to remove <strong>{manageStudent.full_name}</strong>.</p>
                     <div className="flex gap-4">
-                      <button onClick={() => setShowDeleteModal(false)} className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl">No, Cancel</button>
-                      <button onClick={() => { setShowDeleteModal(false); handleDeleteStudent(manageStudent.student_id); }} className="flex-1 py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md">Yes, Remove</button>
+                      <button onClick={() => setShowDeleteModal(false)} className="flex-1 py-3.5 bg-slate-100 font-bold rounded-xl">Cancel</button>
+                      <button onClick={() => { setShowDeleteModal(false); handleDeleteStudent(manageStudent.student_id); }} className="flex-1 py-3.5 bg-red-600 text-white font-bold rounded-xl shadow-md">Yes, Remove</button>
                     </div>
                   </div>
                 </div>
               )}
 
               <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6">
-                <div>
-                  <h2 className="text-2xl font-black text-[#0a192f] flex items-center gap-3">⚙️ Manage Student</h2>
-                  <p className="text-slate-500 font-bold mt-1">Viewing details for {manageStudent.full_name}</p>
-                </div>
-                <button onClick={() => setManageStudent(null)} className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl">Close</button>
+                <div><h2 className="text-2xl font-black">⚙️ Manage Student</h2></div>
+                <button onClick={() => setManageStudent(null)} className="px-5 py-2 bg-slate-100 font-bold rounded-xl">Close</button>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 space-y-4">
-                  <h3 className="text-lg font-black text-slate-800 mb-4 uppercase tracking-wider">Student Details</h3>
-                  <div className="grid grid-cols-[100px_1fr]"><span className="text-slate-500 font-bold">Name:</span><span className="font-black text-slate-900">{manageStudent.full_name}</span></div>
-                  <div className="grid grid-cols-[100px_1fr]"><span className="text-slate-500 font-bold">ID:</span><span className="font-black text-blue-600">{manageStudent.student_id}</span></div>
-                  <div className="grid grid-cols-[100px_1fr]"><span className="text-slate-500 font-bold">Class:</span><span className="font-bold text-slate-800">{manageStudent.class_name}</span></div>
-                  <div className="grid grid-cols-[100px_1fr]"><span className="text-slate-500 font-bold">Phone:</span><span className="font-bold text-slate-800">{manageStudent.phone_number || manageStudent.phone}</span></div>
-                  <div className="grid grid-cols-[100px_1fr]"><span className="text-slate-500 font-bold">Address:</span><span className="font-bold text-slate-800">{manageStudent.address || "N/A"}</span></div>
+                <div className="bg-slate-50 rounded-2xl p-6 space-y-4">
+                  <h3 className="text-lg font-black tracking-wider">Student Details</h3>
+                  <div><strong>Name:</strong> {manageStudent.full_name}</div>
+                  <div><strong>ID:</strong> {manageStudent.student_id}</div>
+                  <div><strong>Class:</strong> {manageStudent.class_name}</div>
+                  <div><strong>Phone:</strong> {manageStudent.phone_number || manageStudent.phone}</div>
                 </div>
 
-                <div className="space-y-8">
+                <div className="space-y-6">
+                  <div className="bg-blue-50 rounded-2xl p-6 border border-blue-200">
+                    <h3 className="text-lg font-black text-blue-800 mb-2">📷 Update Profile Picture</h3>
+                    <div className="flex items-center gap-4">
+                      {updateStudentImage ? <img src={updateStudentImage} className="w-16 h-16 rounded-full object-cover" /> : manageStudent.profile_image ? <img src={manageStudent.profile_image} className="w-16 h-16 rounded-full object-cover" /> : <div className="w-16 h-16 bg-blue-100 text-blue-400 rounded-full flex items-center justify-center text-2xl">👤</div>}
+                      <div className="flex-1 w-full">
+                        <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, setUpdateStudentImage)} className="text-xs w-full mb-2" />
+                        <button onClick={handleUpdateStudentImageAPI} disabled={isUpdatingImage || !updateStudentImage} className="w-full px-4 py-2 bg-blue-600 text-white rounded-xl font-bold">Upload & Save Image</button>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-200">
                     <h3 className="text-lg font-black text-emerald-800 mb-2">🔑 Reset Password</h3>
-                    <p className="text-emerald-700 text-sm font-medium mb-4">Set a new password for this student.</p>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <input type="text" value={adminResetPass} onChange={(e) => setAdminResetPass(e.target.value)} placeholder="Type new password..." className="w-full px-4 py-3 rounded-xl border border-emerald-300 outline-none font-bold bg-white" />
-                      <button onClick={handleAdminPasswordReset} disabled={isResetting} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold whitespace-nowrap">
-                        {isResetting ? "Wait..." : "Update Password"}
-                      </button>
+                    <div className="flex gap-3">
+                      <input type="text" value={adminResetPass} onChange={(e) => setAdminResetPass(e.target.value)} placeholder="Type new password..." className="w-full px-4 py-3 rounded-xl border border-emerald-300 font-bold" />
+                      <button onClick={handleAdminPasswordReset} disabled={isResetting} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold">Update</button>
                     </div>
                   </div>
 
                   <div className="bg-red-50 rounded-2xl p-6 border border-red-200">
                     <h3 className="text-lg font-black text-red-800 mb-2">🗑️ Remove Student</h3>
-                    <p className="text-red-700 text-sm font-medium mb-4">Move this student account to the archive.</p>
-                    <button onClick={() => setShowDeleteModal(true)} className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black shadow-md">
-                      Remove Student Account
-                    </button>
+                    <button onClick={() => setShowDeleteModal(true)} className="w-full py-3 bg-red-600 text-white rounded-xl font-black shadow-md">Remove Student Account</button>
                   </div>
                 </div>
               </div>
@@ -518,14 +473,11 @@ function AdminContent() {
           ) : (
             <>
               <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-black text-[#0a192f]">Detailed Students List</h1>
+                <h1 className="text-3xl font-black text-[#0a192f]">Students List</h1>
                 {archivedStudents.length > 0 && (
-                  <button onClick={() => setActiveTab("archivedStudents")} className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-md flex items-center gap-2">
-                    ♻️ View Archive ({archivedStudents.length})
-                  </button>
+                  <button onClick={() => setActiveTab("archivedStudents")} className="px-5 py-2.5 bg-amber-500 text-white font-bold rounded-xl shadow-md">♻️ Archive ({archivedStudents.length})</button>
                 )}
               </div>
-              
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 mb-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-blue-50/50 p-6 rounded-xl border border-blue-100">
                   <div>
@@ -540,73 +492,48 @@ function AdminContent() {
                   </div>
                 </div>
               </div>
-
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-left border-collapse">
-                    <thead className="bg-[#f8fafc] border-b-2 border-slate-200">
-                      <tr>
-                        <th className="p-5 font-bold text-slate-500 uppercase text-sm">ID</th>
-                        <th className="p-5 font-bold text-slate-500 uppercase text-sm">Name</th>
-                        <th className="p-5 font-bold text-slate-500 uppercase text-sm">Class</th>
-                        <th className="p-5 font-bold text-slate-500 uppercase text-sm text-center">Action</th>
+                <table className="min-w-full text-left border-collapse">
+                  <thead className="bg-[#f8fafc] border-b-2 border-slate-200">
+                    <tr><th className="p-5 font-bold text-slate-500">ID</th><th className="p-5 font-bold text-slate-500">Name</th><th className="p-5 font-bold text-slate-500">Class</th><th className="p-5 font-bold text-slate-500 text-center">Action</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredStudentsForList.map((student) => (
+                      <tr key={student.student_id} className="hover:bg-slate-50">
+                        <td className="p-5 font-bold text-slate-500">{student.student_id}</td>
+                        <td className="p-5 font-black text-slate-900 flex items-center gap-3">
+                           {student.profile_image ? <img src={student.profile_image} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">👤</div>}
+                           {student.full_name}
+                        </td>
+                        <td className="p-5"><span className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-sm font-bold">{student.class_name}</span></td>
+                        <td className="p-5 text-center"><button onClick={() => setManageStudent(student)} className="px-5 py-2.5 bg-[#0a192f] text-white rounded-xl font-bold">⚙️ Manage</button></td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredStudentsForList.map((student) => (
-                        <tr key={student.student_id} className="hover:bg-slate-50">
-                          <td className="p-5 font-bold text-slate-500">{student.student_id}</td>
-                          <td className="p-5 font-black text-slate-900 text-lg">{student.full_name}</td>
-                          <td className="p-5"><span className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-blue-100">{student.class_name}</span></td>
-                          <td className="p-5 text-center">
-                            <button onClick={() => setManageStudent(student)} className="px-5 py-2.5 bg-[#0a192f] hover:bg-slate-800 text-white rounded-xl text-sm font-bold shadow-md">
-                              ⚙️ Manage
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </>
           )}
         </div>
       )}
 
-      {/* ARCHIVED STUDENTS */}
       {activeTab === "archivedStudents" && (
         <div className="animate-fade-in max-w-5xl mx-auto">
           <div className="flex justify-between items-center mb-6">
-            <div>
-              <h1 className="text-3xl font-black text-slate-900 mb-1">♻️ Student Archive</h1>
-              <p className="text-slate-500 font-medium">Restore previously removed students.</p>
-            </div>
-            <button onClick={() => setActiveTab("studentsList")} className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl">
-              ⬅ Back to List
-            </button>
+            <h1 className="text-3xl font-black text-slate-900 mb-1">♻️ Student Archive</h1>
+            <button onClick={() => setActiveTab("studentsList")} className="px-5 py-2.5 bg-slate-100 font-bold rounded-xl">⬅ Back to List</button>
           </div>
           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
             <table className="min-w-full text-left border-collapse">
               <thead className="bg-[#f8fafc] border-b-2 border-slate-200">
-                <tr>
-                  <th className="p-5 font-bold text-slate-500 text-sm">ID</th>
-                  <th className="p-5 font-bold text-slate-500 text-sm">Name</th>
-                  <th className="p-5 font-bold text-slate-500 text-sm">Class</th>
-                  <th className="p-5 font-bold text-slate-500 text-sm text-center">Restore</th>
-                </tr>
+                <tr><th className="p-5 font-bold text-slate-500">ID</th><th className="p-5 font-bold text-slate-500">Name</th><th className="p-5 font-bold text-slate-500 text-center">Restore</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {archivedStudents.map((student) => (
                   <tr key={student.student_id}>
                     <td className="p-5 font-bold text-slate-400">{student.student_id}</td>
                     <td className="p-5 font-black text-slate-800">{student.full_name}</td>
-                    <td className="p-5">{student.class_name}</td>
-                    <td className="p-5 text-center">
-                      <button onClick={() => handleRecoverStudent(student.student_id)} className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-black">
-                        ♻️ Recover Account
-                      </button>
-                    </td>
+                    <td className="p-5 text-center"><button onClick={() => handleRecoverStudent(student.student_id)} className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-black">♻️ Recover</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -615,53 +542,53 @@ function AdminContent() {
         </div>
       )}
 
-      {/* ADD STUDENT */}
       {activeTab === "addNewStudent" && (
         <div className="animate-fade-in">
           <h1 className="text-3xl font-black text-[#0a192f] mb-6">Register New Student</h1>
-          <div className="bg-white rounded-3xl p-6 md:p-10 shadow-sm border border-slate-200 max-w-3xl space-y-6">
-            <div><label className="block text-sm font-bold text-slate-700 mb-2">Student Full Name *</label><input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" className={inputClass} /></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div><label className="block text-sm font-bold text-slate-700 mb-2">Father's Name</label><input type="text" value={fathersName} onChange={(e) => setFathersName(e.target.value)} placeholder="Father's Name" className={inputClass} /></div>
-              <div><label className="block text-sm font-bold text-slate-700 mb-2">Mother's Name</label><input type="text" value={mothersName} onChange={(e) => setMothersName(e.target.value)} placeholder="Mother's Name" className={inputClass} /></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Class *</label>
-                <select value={className} onChange={(e) => setClassName(e.target.value)} className={inputClass}>
-                  <option value="">Select Class</option><option value="Class 6">Class 6</option><option value="Class 7">Class 7</option><option value="Class 8">Class 8</option><option value="Class 9">Class 9</option><option value="Class 10">Class 10</option><option value="SSC 2026">SSC 2026</option>
-                </select>
+          <div className="bg-white rounded-3xl p-6 md:p-10 shadow-sm border border-slate-200 max-w-4xl">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 p-6 rounded-2xl bg-slate-50">
+                <p className="text-xs font-bold text-slate-500 mb-4 text-center">Profile Image<br/>(Auto-Compressed)</p>
+                {studentImage ? <img src={studentImage} className="w-32 h-32 object-cover rounded-full shadow-md mb-4 border-4 border-white" /> : <div className="w-32 h-32 bg-slate-200 rounded-full flex items-center justify-center text-4xl mb-4">📷</div>}
+                <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, setStudentImage)} className="text-sm w-full" />
               </div>
-              <div><label className="block text-sm font-bold text-slate-700 mb-2">Phone Number (Login ID) *</label><input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="017XXXXXXX" className={inputClass} /></div>
+              <div className="md:col-span-2 space-y-6">
+                <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name *" className={inputClass} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <input type="text" value={fathersName} onChange={(e) => setFathersName(e.target.value)} placeholder="Father's Name" className={inputClass} />
+                  <input type="text" value={mothersName} onChange={(e) => setMothersName(e.target.value)} placeholder="Mother's Name" className={inputClass} />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <select value={className} onChange={(e) => setClassName(e.target.value)} className={inputClass}>
+                    <option value="">Select Class *</option><option value="Class 6">Class 6</option><option value="Class 7">Class 7</option><option value="Class 8">Class 8</option><option value="Class 9">Class 9</option><option value="Class 10">Class 10</option><option value="SSC 2026">SSC 2026</option>
+                  </select>
+                  <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone (Login ID) *" className={inputClass} />
+                </div>
+                <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Address" className={inputClass} />
+                <button onClick={handleRegisterStudent} disabled={!!loadingMsg} className="w-full py-4 bg-[#0a192f] text-white font-black rounded-xl text-lg shadow-lg">
+                  {loadingMsg ? loadingMsg : "Register Student"}
+                </button>
+              </div>
             </div>
-            <div><label className="block text-sm font-bold text-slate-700 mb-2">Address</label><input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Village, Thana, District" className={inputClass} /></div>
-            <button type="button" onClick={handleRegisterStudent} disabled={!!loadingMsg} className="w-full py-4 bg-[#0a192f] hover:bg-slate-800 text-white font-black rounded-xl text-lg shadow-lg">
-              {loadingMsg ? loadingMsg : "Register Student"}
-            </button>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* 🔴 STRICT CQ + MCQ + PR AUTO-CALCULATOR (NEVER EXCEEDS FULL MARKS)        */}
-      {/* ========================================================================= */}
       {activeTab === "examResults" && (
         <div className="animate-fade-in">
           <h1 className="text-3xl font-black text-[#0a192f] mb-6">Exam Results Management</h1>
           <div className="flex flex-wrap gap-4 mb-8">
-            <button onClick={() => setResultTab("publish")} className={`px-6 py-3 rounded-xl font-bold transition-all ${resultTab === "publish" ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200'}`}>+ Publish New Result</button>
-            <button onClick={() => setResultTab("manage")} className={`px-6 py-3 rounded-xl font-bold transition-all ${resultTab === "manage" ? 'bg-emerald-600 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200'}`}>📋 View & Manage Results</button>
+            <button onClick={() => setResultTab("publish")} className={`px-6 py-3 rounded-xl font-bold transition-all ${resultTab === "publish" ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-slate-200'}`}>+ Publish Result</button>
+            <button onClick={() => setResultTab("manage")} className={`px-6 py-3 rounded-xl font-bold transition-all ${resultTab === "manage" ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200'}`}>📋 Manage Results</button>
           </div>
 
           {resultTab === "publish" && (
             <div className="bg-white rounded-3xl p-6 md:p-10 shadow-sm border border-slate-200 max-w-5xl">
-              
-              {/* Top 3 Selection Fields */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-200">
                 <div>
                   <label className="block text-sm font-black text-slate-700 mb-2">1. Select Class *</label>
                   <select className={inputClass} onChange={(e) => setPayClassFilter(e.target.value)}>
-                    <option value="">All Classes</option><option value="Class 6">Class 6</option><option value="Class 7">Class 7</option><option value="Class 8">Class 8</option><option value="Class 9">Class 9</option><option value="Class 10">Class 10</option><option value="SSC 2026">SSC 2026</option>
+                    <option value="">All Classes</option><option value="Class 6">Class 6</option><option value="Class 10">Class 10</option>
                   </select>
                 </div>
                 <div>
@@ -669,150 +596,49 @@ function AdminContent() {
                   <select value={resultStudentId} onChange={(e) => setResultStudentId(e.target.value)} className={inputClass}>
                     <option value="">-- Choose Student --</option>
                     {students.filter(std => payClassFilter ? std.class_name === payClassFilter : true).map(std => (
-                      <option key={std.student_id} value={std.student_id}>{std.full_name} (ID: {std.student_id})</option>
+                      <option key={std.student_id} value={std.student_id}>{std.full_name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-black text-slate-700 mb-2">3. Exam Name *</label>
-                  <input type="text" value={examName} onChange={(e) => setExamName(e.target.value)} placeholder="e.g. Half Yearly Exam 2026" className={inputClass} />
+                  <input type="text" value={examName} onChange={(e) => setExamName(e.target.value)} placeholder="Half Yearly" className={inputClass} />
                 </div>
               </div>
 
-              {/* Subject-Wise Marks Entry Header */}
-              <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-                <div>
-                  <h3 className="text-xl font-black text-[#0a192f] uppercase tracking-wide">Subject-Wise Marks Entry</h3>
-                  <p className="text-sm text-slate-500 font-semibold mt-0.5">Enter CQ, MCQ, and Practical marks. Total & Grade will be calculated automatically.</p>
-                </div>
-                <button onClick={handleAddSubject} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-sm shadow-md transition-all active:scale-95">
-                  + Add Another Subject
-                </button>
+              <div className="flex justify-between items-center gap-4 mb-6">
+                <h3 className="text-xl font-black text-[#0a192f] uppercase tracking-wide">Subject-Wise Marks Entry</h3>
+                <button onClick={handleAddSubject} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-sm shadow-md">+ Add Subject</button>
               </div>
 
-              {/* Spacious Subject Cards List */}
               <div className="space-y-6">
                 {subjects.map((sub, index) => {
                   const obtNum = Number(sub.obtained) || 0;
                   const fullNum = Number(sub.fullMarks) || 100;
                   const isExceeded = obtNum > fullNum;
-                  const { grade, gp } = calculateGradeInfo(obtNum, fullNum);
-
                   return (
-                    <div key={index} className={`p-6 rounded-2xl border-2 shadow-sm transition-all ${isExceeded ? 'bg-red-50/60 border-red-500' : 'bg-slate-50/80 border-slate-200 hover:border-blue-300'}`}>
-                      
-                      {/* Card Top Bar */}
-                      <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-200">
-                        <div className="flex items-center gap-3">
-                          <span className="bg-[#0a192f] text-white px-3.5 py-1 rounded-lg text-xs font-black tracking-wider uppercase">
-                            Subject #{index + 1}
-                          </span>
-                          {isExceeded && (
-                            <span className="bg-red-600 text-white px-3 py-1 rounded-lg text-xs font-black animate-pulse">
-                              ⚠️ Error: Total marks ({obtNum}) cannot exceed Full Marks ({fullNum})!
-                            </span>
-                          )}
-                        </div>
-                        {subjects.length > 1 && (
-                          <button onClick={() => handleRemoveSubject(index)} className="px-3.5 py-1.5 bg-red-100 text-red-600 rounded-lg text-xs font-black hover:bg-red-200 transition-colors">
-                            🗑️ Remove Subject
-                          </button>
-                        )}
+                    <div key={index} className={`p-6 rounded-2xl border-2 shadow-sm ${isExceeded ? 'bg-red-50 border-red-500' : 'bg-slate-50 border-slate-200'}`}>
+                      <div className="flex justify-between mb-4 border-b border-slate-200 pb-3">
+                        <span className="bg-[#0a192f] text-white px-3 py-1 rounded-lg text-xs font-black">Subject #{index + 1}</span>
+                        {subjects.length > 1 && <button onClick={() => handleRemoveSubject(index)} className="text-red-600 font-bold text-xs">🗑️ Remove</button>}
                       </div>
-
-                      {/* ROW 1: Subject Name, Full Marks, Highest Marks */}
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-5">
-                        <div className="md:col-span-6">
-                          <label className="block text-xs font-black text-slate-700 mb-2 uppercase tracking-wider">Subject Name *</label>
-                          <input 
-                            type="text" 
-                            value={sub.name} 
-                            onChange={(e) => handleSubjectFieldChange(index, "name", e.target.value)} 
-                            placeholder="e.g. Bangla 1st Paper / Mathematics" 
-                            className={inputClass} 
-                          />
-                        </div>
-                        <div className="md:col-span-3">
-                          <label className="block text-xs font-black text-slate-600 mb-2 uppercase tracking-wider">Full Marks *</label>
-                          <input 
-                            type="number" 
-                            value={sub.fullMarks} 
-                            onChange={(e) => handleSubjectFieldChange(index, "fullMarks", Number(e.target.value))} 
-                            className={numberBoxClass} 
-                          />
-                        </div>
-                        <div className="md:col-span-3">
-                          <label className="block text-xs font-black text-slate-600 mb-2 uppercase tracking-wider">Highest Marks (Opt.)</label>
-                          <input 
-                            type="number" 
-                            value={sub.highestMarks} 
-                            onChange={(e) => handleSubjectFieldChange(index, "highestMarks", e.target.value)} 
-                            placeholder="e.g. 95" 
-                            className={numberBoxClass} 
-                          />
-                        </div>
+                        <div className="md:col-span-6"><input type="text" value={sub.name} onChange={(e) => handleSubjectFieldChange(index, "name", e.target.value)} placeholder="Subject Name *" className={inputClass} /></div>
+                        <div className="md:col-span-3"><input type="number" value={sub.fullMarks} onChange={(e) => handleSubjectFieldChange(index, "fullMarks", Number(e.target.value))} placeholder="Full Marks" className={numberBoxClass} /></div>
+                        <div className="md:col-span-3"><input type="number" value={sub.highestMarks} onChange={(e) => handleSubjectFieldChange(index, "highestMarks", e.target.value)} placeholder="Highest" className={numberBoxClass} /></div>
                       </div>
-
-                      {/* ROW 2: CQ, MCQ, PR, AUTO TOTAL, AUTO GRADE */}
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 bg-white p-5 rounded-xl border border-slate-200">
-                        <div>
-                          <label className="block text-xs font-black text-blue-600 mb-2 text-center uppercase">CQ (Written)</label>
-                          <input 
-                            type="number" 
-                            value={sub.cq} 
-                            onChange={(e) => handleSubjectFieldChange(index, "cq", e.target.value)} 
-                            placeholder="00" 
-                            className={numberBoxClass} 
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-black text-blue-600 mb-2 text-center uppercase">MCQ</label>
-                          <input 
-                            type="number" 
-                            value={sub.mcq} 
-                            onChange={(e) => handleSubjectFieldChange(index, "mcq", e.target.value)} 
-                            placeholder="00" 
-                            className={numberBoxClass} 
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-black text-blue-600 mb-2 text-center uppercase">Practical (PR)</label>
-                          <input 
-                            type="number" 
-                            value={sub.pr} 
-                            onChange={(e) => handleSubjectFieldChange(index, "pr", e.target.value)} 
-                            placeholder="-" 
-                            className={numberBoxClass} 
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-black text-emerald-700 mb-2 text-center uppercase">Total (Auto)</label>
-                          <input 
-                            type="text" 
-                            readOnly
-                            value={sub.obtained !== "" ? `${sub.obtained} / ${fullNum}` : "-"} 
-                            className={`w-full px-3 py-3 rounded-xl border-2 font-black text-center text-base outline-none cursor-not-allowed ${isExceeded ? 'border-red-600 bg-red-100 text-red-700' : 'border-emerald-500 bg-emerald-50/70 text-slate-900'}`} 
-                          />
-                        </div>
-                        <div className="col-span-2 sm:col-span-1 flex flex-col justify-end">
-                          <label className="block text-xs font-black text-slate-500 mb-2 text-center uppercase">Grade & GP (Auto)</label>
-                          <div className={`w-full py-3 rounded-xl border-2 flex items-center justify-center font-black text-base ${sub.obtained === "" ? 'bg-slate-100 border-slate-200 text-slate-400' : isExceeded ? 'bg-red-600 border-red-700 text-white' : grade === 'F' ? 'bg-red-50 border-red-200 text-red-600' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
-                            {sub.obtained === "" ? "-" : isExceeded ? "Exceeds Full!" : `${grade} (${gp})`}
-                          </div>
-                        </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-white p-5 rounded-xl border border-slate-200">
+                        <input type="number" value={sub.cq} onChange={(e) => handleSubjectFieldChange(index, "cq", e.target.value)} placeholder="CQ" className={numberBoxClass} />
+                        <input type="number" value={sub.mcq} onChange={(e) => handleSubjectFieldChange(index, "mcq", e.target.value)} placeholder="MCQ" className={numberBoxClass} />
+                        <input type="number" value={sub.pr} onChange={(e) => handleSubjectFieldChange(index, "pr", e.target.value)} placeholder="PR" className={numberBoxClass} />
+                        <input type="text" readOnly value={sub.obtained !== "" ? `${sub.obtained} / ${fullNum}` : "Total"} className="w-full px-3 py-3 rounded-xl border-2 font-black text-center bg-slate-100 text-slate-500" />
                       </div>
-
                     </div>
                   );
                 })}
               </div>
-
-              <button 
-                onClick={handlePublishResult} 
-                disabled={!!resultLoading || hasAnyExceededError} 
-                className={`w-full mt-8 py-4 text-white font-black rounded-2xl transition-all shadow-xl text-lg ${hasAnyExceededError ? 'bg-red-400 cursor-not-allowed' : 'bg-[#0a192f] hover:bg-slate-800 active:scale-98'}`}
-              >
-                {hasAnyExceededError ? "❌ Fix Exceeded Marks Before Publishing" : resultLoading ? resultLoading : "🏆 Publish Official Marksheet"}
+              <button onClick={handlePublishResult} disabled={!!resultLoading || hasAnyExceededError} className="w-full mt-8 py-4 bg-[#0a192f] text-white font-black rounded-2xl shadow-xl text-lg">
+                {hasAnyExceededError ? "❌ Fix Marks" : resultLoading ? resultLoading : "🏆 Publish Result"}
               </button>
             </div>
           )}
@@ -822,30 +648,22 @@ function AdminContent() {
                <div className="overflow-x-auto">
                 <table className="min-w-full text-left border-collapse">
                   <thead className="bg-[#f8fafc] border-b-2 border-slate-200">
-                    <tr>
-                      <th className="p-5 font-bold text-slate-500 uppercase text-sm">Student</th>
-                      <th className="p-5 font-bold text-slate-500 uppercase text-sm">Exam Name</th>
-                      <th className="p-5 font-bold text-slate-500 text-center uppercase text-sm">Action</th>
-                    </tr>
+                    <tr><th className="p-5 font-bold">Student</th><th className="p-5 font-bold">Exam</th><th className="p-5 font-bold text-center">Action</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {resultsList.map((resItem: any, index: number) => {
                       const resId = resItem.id || resItem.result_id;
-                      const studentInfo = resItem.full_name ? `${resItem.full_name} (${resItem.class_name})` : getStudentInfo(resItem.student_id);
                       return (
                         <tr key={index} className="hover:bg-slate-50">
-                          <td className="p-5 font-black text-slate-900">{studentInfo}</td>
+                          <td className="p-5 font-black">{resItem.full_name ? `${resItem.full_name} (${resItem.class_name})` : resItem.student_id}</td>
                           <td className="p-5 font-bold text-slate-600 uppercase">{resItem.exam_name}</td>
-                          <td className="p-5 text-center">
-                             <button onClick={() => handleDeleteResult(resId)} className="px-5 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100">Delete</button>
-                          </td>
+                          <td className="p-5 text-center"><button onClick={() => handleDeleteResult(resId)} className="px-5 py-2 bg-red-50 text-red-600 rounded-xl font-bold">Delete</button></td>
                         </tr>
                       )
                     })}
                   </tbody>
                 </table>
               </div>
-              {resultsList.length === 0 && <p className="text-center text-slate-500 font-bold p-10 text-lg">No results published yet.</p>}
             </div>
           )}
         </div>
@@ -853,31 +671,91 @@ function AdminContent() {
 
       {/* FACULTY MANAGEMENT */}
       {activeTab === "facultyList" && (
-        <div className="animate-fade-in">
-          <h1 className="text-3xl font-black text-slate-900 mb-6">Faculty Management</h1>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-            {faculties.map((teacher) => (
-              <div key={teacher.id} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-200 flex flex-col">
-                <div className="w-full aspect-square bg-slate-100 relative">
-                  <img src={teacher.image || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} alt={teacher.name} className="w-full h-full object-cover" />
+        <div className="animate-fade-in max-w-6xl mx-auto">
+          {manageFaculty ? (
+            <div className="bg-white rounded-3xl p-6 md:p-10 shadow-lg border border-slate-200 relative">
+              <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6">
+                <div><h2 className="text-2xl font-black text-[#0a192f]">⚙️ Manage Faculty</h2><p className="font-bold text-slate-500">Editing {manageFaculty.name}</p></div>
+                <button onClick={() => setManageFaculty(null)} className="px-5 py-2 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl">Close</button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="flex flex-col items-center p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                  <h3 className="font-black text-slate-700 mb-4">Profile Image</h3>
+                  {manageFaculty.image ? <img src={manageFaculty.image} className="w-40 h-40 object-cover rounded-full shadow-md mb-4 border-4 border-white" /> : <div className="w-40 h-40 bg-slate-200 rounded-full flex items-center justify-center text-4xl mb-4">👨‍🏫</div>}
+                  <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, handleUpdateFacultyImageAPI)} className="text-xs w-full text-center" />
+                  <p className="text-xs text-slate-500 mt-2 text-center">Image auto-saves upon selection.</p>
                 </div>
-                <div className="p-6 flex-1 flex flex-col">
-                  <h3 className="text-xl font-black text-slate-900 mb-1">{teacher.name}</h3>
-                  <p className="text-indigo-600 font-bold text-sm mb-4">{teacher.designation}</p>
-                  <div className="text-sm text-slate-600 space-y-2 mb-6">
-                    <p>🎓 <strong>Edu:</strong> {teacher.education}</p>
-                    <p>⏳ <strong>Exp:</strong> {teacher.experience}</p>
-                    <p>📚 <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded font-bold text-xs">{teacher.subjects}</span></p>
+
+                <div className="lg:col-span-2 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label className="block text-sm font-bold text-slate-700 mb-1">Name</label><input type="text" value={manageFaculty.name} onChange={(e) => setManageFaculty({...manageFaculty, name: e.target.value})} className={inputClass} /></div>
+                    <div><label className="block text-sm font-bold text-slate-700 mb-1">Designation</label><input type="text" value={manageFaculty.designation} onChange={(e) => setManageFaculty({...manageFaculty, designation: e.target.value})} className={inputClass} /></div>
                   </div>
-                  {(teacher.id === 901 || teacher.id === 902) ? (
-                    <button disabled className="mt-auto w-full py-2.5 bg-slate-100 text-slate-400 rounded-xl font-bold">Protected</button>
-                  ) : (
-                    <button onClick={() => handleDeleteFaculty(teacher.id)} className="mt-auto w-full py-2.5 bg-red-50 text-red-600 rounded-xl font-bold">🗑️ Delete</button>
-                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label className="block text-sm font-bold text-slate-700 mb-1">Education</label><input type="text" value={manageFaculty.education} onChange={(e) => setManageFaculty({...manageFaculty, education: e.target.value})} className={inputClass} /></div>
+                    <div><label className="block text-sm font-bold text-slate-700 mb-1">Subjects</label><input type="text" value={manageFaculty.subjects} onChange={(e) => setManageFaculty({...manageFaculty, subjects: e.target.value})} className={inputClass} /></div>
+                  </div>
+                  <div><label className="block text-sm font-bold text-slate-700 mb-1">Experience</label><input type="text" value={manageFaculty.experience} onChange={(e) => setManageFaculty({...manageFaculty, experience: e.target.value})} className={inputClass} /></div>
+                  
+                  <div className="flex gap-4 pt-4 border-t border-slate-100">
+                    <button onClick={handleUpdateFacultyDetails} disabled={isUpdatingFaculty} className="flex-1 py-3.5 bg-[#0a192f] text-white font-black rounded-xl shadow-md">{isUpdatingFaculty ? "Saving..." : "💾 Save Changes"}</button>
+                    <button onClick={() => handleDeleteFaculty(manageFaculty.id)} className="px-6 py-3.5 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-colors font-black rounded-xl border border-red-100">🗑️ Delete Teacher</button>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <>
+              <h1 className="text-3xl font-black text-slate-900 mb-6">Faculty Management</h1>
+              <div className="bg-white rounded-3xl p-6 md:p-10 shadow-sm border border-slate-200 mb-10">
+                <h3 className="text-xl font-black text-emerald-600 mb-6">+ Add New Teacher</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 p-6 rounded-2xl bg-slate-50">
+                    <p className="text-xs font-bold text-slate-500 mb-4">Profile Image</p>
+                    {fImage ? <img src={fImage} className="w-32 h-32 object-cover rounded-full shadow-md mb-4 border-4 border-white" /> : <div className="w-32 h-32 bg-slate-200 rounded-full flex items-center justify-center text-4xl mb-4">👨‍🏫</div>}
+                    <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, setFImage)} className="text-sm w-full" />
+                  </div>
+                  <div className="md:col-span-2 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <input type="text" value={fName} onChange={(e) => setFName(e.target.value)} placeholder="Name *" className={inputClass} />
+                      <input type="text" value={fDesignation} onChange={(e) => setFDesignation(e.target.value)} placeholder="Designation *" className={inputClass} />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <input type="text" value={fEducation} onChange={(e) => setFEducation(e.target.value)} placeholder="Education" className={inputClass} />
+                      <input type="text" value={fSubjects} onChange={(e) => setFSubjects(e.target.value)} placeholder="Subjects" className={inputClass} />
+                      <input type="text" value={fExperience} onChange={(e) => setFExperience(e.target.value)} placeholder="Experience" className={inputClass} />
+                    </div>
+                    <button onClick={handleRegisterFaculty} disabled={!!loadingMsg} className="w-full py-4 bg-emerald-600 text-white font-black rounded-xl">{loadingMsg ? loadingMsg : "💾 Save Teacher"}</button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+                {faculties.map((teacher) => (
+                  <div key={teacher.id} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-200 flex flex-col hover:-translate-y-1 transition-transform">
+                    <div className="w-full aspect-square bg-slate-100 relative">
+                      <img src={teacher.image || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} alt={teacher.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="p-6 flex-1 flex flex-col">
+                      <h3 className="text-xl font-black text-slate-900 mb-1">{teacher.name}</h3>
+                      <p className="text-indigo-600 font-bold text-sm mb-4">{teacher.designation}</p>
+                      <div className="text-sm text-slate-600 space-y-2 mb-6">
+                        <p>🎓 {teacher.education}</p>
+                        <p>⏳ {teacher.experience}</p>
+                        <p>📚 <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded font-bold text-xs">{teacher.subjects}</span></p>
+                      </div>
+                      
+                      <button onClick={() => setManageFaculty(teacher)} className="mt-auto w-full py-2.5 bg-[#0a192f] text-white rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-md">
+                        ⚙️ Manage
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {faculties.length === 0 && <p className="col-span-full text-center text-slate-500 font-bold p-10">No teachers found in the database. Please add them above!</p>}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -886,43 +764,24 @@ function AdminContent() {
         <div className="animate-fade-in max-w-5xl mx-auto">
           <h1 className="text-3xl font-black text-[#0a192f] mb-6">Student Payments Management</h1>
           <div className="bg-white rounded-3xl p-6 md:p-10 shadow-sm border border-slate-200 mb-8">
-            <h3 className="text-xl font-black text-blue-600 border-b border-slate-100 pb-4 mb-6">+ Record New Payment</h3>
+            <h3 className="text-xl font-black text-blue-600 border-b border-slate-100 pb-4 mb-6">+ Record Payment</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Select Student *</label>
                 <select value={payStudentId} onChange={(e) => setPayStudentId(e.target.value)} className={inputClass}>
                   <option value="">-- Choose Student --</option>
-                  {filteredStudentsForPayment.map(std => (
-                    <option key={std.student_id} value={std.student_id}>{std.full_name} (ID: {std.student_id})</option>
-                  ))}
+                  {filteredStudentsForPayment.map(std => (<option key={std.student_id} value={std.student_id}>{std.full_name}</option>))}
                 </select>
               </div>
-              <div><label className="block text-sm font-bold text-slate-700 mb-2">Amount (৳) *</label><input type="number" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="1500" className={inputClass} /></div>
-              <div><label className="block text-sm font-bold text-slate-700 mb-2">Purpose *</label><input type="text" value={payPurpose} onChange={(e) => setPayPurpose(e.target.value)} placeholder="Monthly Fee" className={inputClass} /></div>
+              <div><input type="number" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="Amount (৳)" className={inputClass} /></div>
+              <div><input type="text" value={payPurpose} onChange={(e) => setPayPurpose(e.target.value)} placeholder="Purpose" className={inputClass} /></div>
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Status *</label>
                 <select value={payStatus} onChange={(e) => setPayStatus(e.target.value)} className={inputClass}>
-                  <option value="Paid">Paid</option><option value="Pending">Pending</option><option value="Partial">Partial</option>
+                  <option value="Paid">Paid</option><option value="Pending">Pending</option>
                 </select>
               </div>
-              <div className="lg:col-span-4">
-                <button type="button" onClick={handleRecordPayment} disabled={!!payLoading} className="px-10 py-3.5 bg-blue-600 text-white font-black rounded-xl shadow-md">
-                  {payLoading ? payLoading : "💾 Record Payment"}
-                </button>
-              </div>
+              <div className="lg:col-span-4"><button type="button" onClick={handleRecordPayment} disabled={!!payLoading} className="px-10 py-3.5 bg-blue-600 text-white font-black rounded-xl shadow-md">💾 Record Payment</button></div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* CLASS LECTURES */}
-      {activeTab === "classLecture" && (
-        <div className="bg-white rounded-[2rem] p-12 text-center shadow-lg border border-slate-200 max-w-3xl mx-auto mt-10">
-          <p className="text-6xl mb-4">📺</p>
-          <h2 className="text-3xl font-black text-slate-900 mb-4">Class Lectures</h2>
-          <a href="https://www.youtube.com/@prottoyacademy" target="_blank" rel="noopener noreferrer" className="inline-block px-8 py-4 bg-red-600 text-white font-black rounded-2xl shadow-lg">
-            ▶️ Go to Prottoy Academy YouTube
-          </a>
         </div>
       )}
     </div>

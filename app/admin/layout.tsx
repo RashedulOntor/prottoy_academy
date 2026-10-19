@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -19,6 +19,13 @@ const CloseIcon = () => (
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const pathname = usePathname();
+  
+  // 🔴 NEW: Hydration Error ফিক্স করার জন্য isMounted স্টেট
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const menuItems = [
     { name: "Dashboard", href: "/admin?tab=dashboard", icon: "📊" },
@@ -57,8 +64,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100vh-80px)] custom-scrollbar">
           {menuItems.map((item) => {
-            // URL প্যারামিটার অনুযায়ী অ্যাক্টিভ স্টেট চেক করা হচ্ছে
-            const isActive = typeof window !== 'undefined' ? window.location.search.includes(item.href.split('?')[1]) : false;
+            // 🔴 UPDATE: isMounted চেক করার মাধ্যমে Hydration Error ফিক্স করা হয়েছে
+            const isActive = isMounted ? window.location.search.includes(item.href.split('?')[1]) : false;
             
             return (
               <Link
