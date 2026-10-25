@@ -21,21 +21,20 @@ const GROUPS = ["Science", "Humanities", "Business Studies", "General"];
 
 const getSubjectsList = (cls: string, grp: string) => {
   if (!cls) return []; 
-
   const juniorSubjects = [
     "Bangla 1st Paper", "Bangla 2nd Paper", "English 1st Paper", "English 2nd Paper", 
     "Mathematics", "Science", "Bangladesh & Global Studies", "ICT", 
     "Life & Livelihood", "Health & Wellbeing", "Religion", "Art & Culture"
   ];
-  
   const commonSenior = [
     "Bangla 1st Paper", "Bangla 2nd Paper", "English 1st Paper", "English 2nd Paper", 
     "General Mathematics", "Religion & Moral Education", "ICT"
   ];
-  
   if (["Class 6", "Class 7", "Class 8"].includes(cls)) return juniorSubjects;
-  
   if (!grp) return []; 
+  
+  // 🔴 NEW: Return only common subjects if "All" is selected
+  if (grp === "All") return commonSenior;
   
   let specific: string[] = [];
   if (grp === "Science") {
@@ -45,7 +44,6 @@ const getSubjectsList = (cls: string, grp: string) => {
   } else if (grp === "Business Studies") {
     specific = ["Accounting", "Finance & Banking", "Business Entrepreneurship", "General Science", "Agriculture Studies", "Home Science"];
   }
-  
   return [...commonSenior, ...specific];
 };
 
@@ -63,12 +61,18 @@ function AdminContent() {
 
   useEffect(() => { if (urlTab) setActiveTab(urlTab); }, [urlTab]);
 
-  // General States
   const [fullName, setFullName] = useState(""); const [fathersName, setFathersName] = useState(""); const [mothersName, setMothersName] = useState("");
   const [className, setClassName] = useState(""); const [studentGroup, setStudentGroup] = useState(""); const [phone, setPhone] = useState(""); const [address, setAddress] = useState(""); const [studentImage, setStudentImage] = useState("");
   const [studentListClassFilter, setStudentListClassFilter] = useState(""); const [studentListSearch, setStudentListSearch] = useState("");
-  const [manageStudent, setManageStudent] = useState<any>(null); const [adminResetPass, setAdminResetPass] = useState("");
-  const [updateStudentImage, setUpdateStudentImage] = useState(""); const [isUpdatingImage, setIsUpdatingImage] = useState(false);
+  
+  const [manageStudent, setManageStudent] = useState<any>(null); 
+  const [adminResetPass, setAdminResetPass] = useState("");
+  const [updateStudentImage, setUpdateStudentImage] = useState(""); 
+  const [editGroup, setEditGroup] = useState("");
+  const [isUpdatingGroup, setIsUpdatingGroup] = useState(false);
+  
+  const [isUpdatingDetails, setIsUpdatingDetails] = useState(false);
+  const [isUpdatingImage, setIsUpdatingImage] = useState(false);
   const [isResetting, setIsResetting] = useState(false); const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   const [fName, setFName] = useState(""); const [fDesignation, setFDesignation] = useState(""); const [fEducation, setFEducation] = useState("");
@@ -80,18 +84,15 @@ function AdminContent() {
   const [payPurpose, setPayPurpose] = useState(""); const [payStatus, setPayStatus] = useState("Paid");
   const [payLoading, setPayLoading] = useState("");
   
-  // Batch Result Entry States
   const [resultTab, setResultTab] = useState("publish");
   const [resultsList, setResultsList] = useState<any[]>([]);
   const [batchExamName, setBatchExamName] = useState(""); const [batchClass, setBatchClass] = useState("");
   const [batchGroup, setBatchGroup] = useState(""); const [batchSubject, setBatchSubject] = useState("");
   const [batchFullMarks, setBatchFullMarks] = useState(100);
-  const [batchHighestMarks, setBatchHighestMarks] = useState("");
   const [batchMarks, setBatchMarks] = useState<any>({}); 
   const [resultLoading, setResultLoading] = useState("");
   const [resultSearchQuery, setResultSearchQuery] = useState("");
 
-  // Manage Result States
   const [manageResult, setManageResult] = useState<any>(null);
   const [editResultData, setEditResultData] = useState({ cq: "", mcq: "", pr: "", total: "", grade: "" });
   const [isUpdatingResult, setIsUpdatingResult] = useState(false);
@@ -144,7 +145,6 @@ function AdminContent() {
   const handlePublishBatchResult = async () => {
     if (!batchExamName || !batchClass || !batchSubject) return alert("❌ Exam, Class and Subject are required!");
     
-    // 🔴 FILTER STUDENTS BY CLASS AND GROUP BEFORE SAVING
     const studentsInClass = classStudents; 
     const payloadMarks: any = {};
     
@@ -240,7 +240,6 @@ function AdminContent() {
   const handleDeleteStudent = async (id: number) => { try { const res = await fetch(`/api/students?id=${id}`, { method: "DELETE" }); const result = await res.json(); if (result.success) { alert("✅ Moved to archive."); setManageStudent(null); fetchStudents(); fetchArchivedStudents(); } } catch (err) {} };
   const handleRecoverStudent = async (id: number) => { if (!window.confirm("Restore this student?")) return; try { const res = await fetch(`/api/students`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: 'recover', id: Number(id) }) }); const result = await res.json(); if (result.success) { alert("✅ Restored!"); fetchStudents(); fetchArchivedStudents(); } } catch (err) {} };
   
-  // 🔴 UPDATE: Group Validation added to Registration
   const handleRegisterStudent = async () => {
     if (!fullName || !phone || !className) return alert("❌ Required: Full Name, Phone, and Class!");
     if (["Class 9", "Class 10", "SSC 2026"].includes(className) && !studentGroup) return alert("❌ Required: Group must be selected for senior classes!");
@@ -262,13 +261,62 @@ function AdminContent() {
   
   const handleUpdateStudentImageAPI = async () => { if (!updateStudentImage || !manageStudent) return alert("⚠️ Please select an image!"); setIsUpdatingImage(true); try { const res = await fetch('/api/students', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'update_image', id: Number(manageStudent.student_id), profile_image: updateStudentImage }) }); const result = await res.json(); if (result.success) { alert(`✅ Image updated!`); setUpdateStudentImage(""); fetchStudents(); setManageStudent({...manageStudent, profile_image: updateStudentImage}); } } catch (err) {} finally { setIsUpdatingImage(false); } };
   const handleAdminPasswordReset = async () => { if (!adminResetPass || !manageStudent) return; setIsResetting(true); try { const res = await fetch('/api/students', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'update_password', id: Number(manageStudent.student_id), newPassword: adminResetPass }) }); if ((await res.json()).success) { alert(`✅ Password changed!`); setAdminResetPass(""); } } catch (err) {} finally { setIsResetting(false); } };
+  
+  const handleUpdateGroup = async () => {
+    setIsUpdatingGroup(true);
+    try {
+      const res = await fetch('/api/students', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: Number(manageStudent.student_id),
+          fullName: manageStudent.full_name,
+          fathersName: manageStudent.fathers_name,
+          mothersName: manageStudent.mothers_name,
+          className: manageStudent.class_name,
+          address: manageStudent.address,
+          studentGroup: editGroup,
+          phone: manageStudent.phone_number || manageStudent.phone
+        })
+      });
+      const result = await res.json();
+      if (result.success) {
+        alert("✅ Group updated successfully!");
+        setManageStudent({ ...manageStudent, student_group: editGroup });
+        fetchStudents();
+      } else alert("❌ Error: " + result.message);
+    } catch (err) {} finally { setIsUpdatingGroup(false); }
+  };
+
+  const handleUpdateStudentDetails = async () => {
+    setIsUpdatingDetails(true);
+    try {
+      const res = await fetch('/api/students', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: Number(manageStudent.student_id),
+          fullName: manageStudent.full_name,
+          fathersName: manageStudent.fathers_name,
+          mothersName: manageStudent.mothers_name,
+          className: manageStudent.class_name,
+          studentGroup: manageStudent.student_group,
+          phone: manageStudent.phone_number || manageStudent.phone,
+          address: manageStudent.address
+        })
+      });
+      const result = await res.json();
+      if (result.success) {
+        alert("✅ Student details updated successfully!");
+        fetchStudents();
+      } else alert("❌ Error: " + result.message);
+    } catch (err) {} finally { setIsUpdatingDetails(false); }
+  };
+
   const handleRegisterFaculty = async () => { if (!fName || !fDesignation) return alert("❌ Required: Name and Designation!"); setLoadingMsg("Adding Teacher..."); try { const res = await fetch("/api/faculty", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: fName, designation: fDesignation, education: fEducation, subjects: fSubjects, experience: fExperience, image: fImage }), }); const result = await res.json(); if (result.success) { alert("✅ Teacher added successfully!"); setFName(""); setFDesignation(""); setFEducation(""); setFSubjects(""); setFExperience(""); setFImage(""); fetchFaculties(); } else alert("❌ Error: " + result.message); } catch (err) {} finally { setLoadingMsg(""); } };
   const handleUpdateFacultyDetails = async () => { setIsUpdatingFaculty(true); try { const res = await fetch('/api/faculty', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'update_details', ...manageFaculty }) }); if ((await res.json()).success) { alert("✅ Faculty details updated!"); fetchFaculties(); } } catch (err) {} finally { setIsUpdatingFaculty(false); } };
   const handleUpdateFacultyImageAPI = async (base64String: string) => { try { const res = await fetch('/api/faculty', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'update_image', id: manageFaculty.id, image: base64String }) }); if ((await res.json()).success) { alert("✅ Image updated!"); setManageFaculty({...manageFaculty, image: base64String}); fetchFaculties(); } } catch (err) {} };
   const handleDeleteFaculty = async (id: number) => { if (!window.confirm("Delete this teacher permanently?")) return; try { const res = await fetch(`/api/faculty?id=${id}`, { method: "DELETE" }); if ((await res.json()).success) { alert("✅ Deleted."); setManageFaculty(null); fetchFaculties(); } } catch (err) {} };
   const handleRecordPayment = async () => { if (!payStudentId || !payAmount || !payPurpose) return alert("❌ Required fields missing!"); setPayLoading("Recording..."); try { const res = await fetch("/api/payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student_id: payStudentId, amount: payAmount, payment_purpose: payPurpose, payment_status: payStatus }) }); if ((await res.json()).success) { alert("✅ Recorded!"); setPayStudentId(""); setPayAmount(""); setPayPurpose(""); fetchPayments(); } } catch (err) {} finally { setPayLoading(""); } };
 
-  // Filters
   const filteredStudentsForPayment = students.filter(std => { const matchClass = payClassFilter ? std.class_name === payClassFilter : true; const matchSearch = paySearchQuery ? std.full_name.toLowerCase().includes(paySearchQuery.toLowerCase()) || std.student_id.toString().includes(paySearchQuery) : true; return matchClass && matchSearch; });
   const filteredStudentsForList = students.filter(std => { const matchClass = studentListClassFilter ? std.class_name === studentListClassFilter : true; const matchSearch = studentListSearch ? std.full_name.toLowerCase().includes(studentListSearch.toLowerCase()) || std.student_id.toString().includes(studentListSearch) : true; return matchClass && matchSearch; });
   const filteredResults = resultsList.filter(res => resultSearchQuery ? res.full_name?.toLowerCase().includes(resultSearchQuery.toLowerCase()) || res.exam_name?.toLowerCase().includes(resultSearchQuery.toLowerCase()) || res.subject_name?.toLowerCase().includes(resultSearchQuery.toLowerCase()) : true);
@@ -279,10 +327,10 @@ function AdminContent() {
   const isSeniorClass = ["Class 9", "Class 10", "SSC 2026"].includes(batchClass);
   const availableSubjects = getSubjectsList(batchClass, batchGroup);
   
-  // 🔴 UPDATE: স্টুডেন্ট লিস্ট শুধুমাত্র নির্দিষ্ট গ্রুপের জন্য ফিল্টার করা
+  // 🔴 FIXED: Handle "All" Groups filter
   const classStudents = students.filter(s => {
     const matchClass = s.class_name === batchClass;
-    const matchGroup = (isSeniorClass && batchGroup) ? s.student_group === batchGroup : true;
+    const matchGroup = (isSeniorClass && batchGroup && batchGroup !== "All") ? s.student_group === batchGroup : true;
     return matchClass && matchGroup;
   });
 
@@ -321,44 +369,111 @@ function AdminContent() {
         </div>
       )}
 
-      {/* STUDENTS LIST */}
+      {/* STUDENTS LIST & MANAGE STUDENT */}
       {activeTab === "studentsList" && (
         <div className="animate-fade-in max-w-6xl mx-auto">
           {manageStudent ? (
              <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 relative">
                <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6">
-                 <div><h2 className="text-xl font-black text-slate-800">⚙️ Manage Student</h2></div>
+                 <div>
+                   <h2 className="text-xl font-black text-slate-800">⚙️ Manage Student</h2>
+                   <p className="text-xs text-slate-500 font-bold">ID: {manageStudent.student_id}</p>
+                 </div>
                  <button onClick={() => setManageStudent(null)} className="px-5 py-2 bg-slate-100 font-bold text-sm rounded-lg hover:bg-slate-200">Close</button>
                </div>
-               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                 <div className="bg-slate-50 rounded-2xl p-6 space-y-4 border border-slate-100">
-                   <h3 className="text-sm font-black tracking-wider text-slate-500 uppercase mb-4">Student Details</h3>
-                   <div className="text-sm"><strong>Name:</strong> {manageStudent.full_name}</div>
-                   <div className="text-sm"><strong>ID:</strong> {manageStudent.student_id}</div>
-                   <div className="text-sm">
-                     <strong>Class:</strong> {manageStudent.class_name} 
-                     {manageStudent.student_group && <span className="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">{manageStudent.student_group}</span>}
+
+               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                 <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 lg:col-span-2">
+                   <h3 className="text-sm font-black tracking-wider text-slate-500 uppercase mb-6">A-Z Edit Profile Details</h3>
+                   
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                     <div>
+                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Full Name</label>
+                       <input type="text" value={manageStudent.full_name || ""} onChange={(e) => setManageStudent({...manageStudent, full_name: e.target.value})} className={inputClass} />
+                     </div>
+                     <div>
+                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone Number (Login ID)</label>
+                       <input type="text" value={manageStudent.phone_number || manageStudent.phone || ""} onChange={(e) => setManageStudent({...manageStudent, phone_number: e.target.value})} className={inputClass} />
+                     </div>
+                     <div>
+                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Father's Name</label>
+                       <input type="text" value={manageStudent.fathers_name || ""} onChange={(e) => setManageStudent({...manageStudent, fathers_name: e.target.value})} className={inputClass} />
+                     </div>
+                     <div>
+                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mother's Name</label>
+                       <input type="text" value={manageStudent.mothers_name || ""} onChange={(e) => setManageStudent({...manageStudent, mothers_name: e.target.value})} className={inputClass} />
+                     </div>
+                     <div>
+                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Class</label>
+                       <select 
+                         value={manageStudent.class_name || ""} 
+                         onChange={(e) => {
+                           const newClass = e.target.value;
+                           const isSenior = ["Class 9", "Class 10", "SSC 2026"].includes(newClass);
+                           setManageStudent({...manageStudent, class_name: newClass, student_group: isSenior ? manageStudent.student_group : ""});
+                         }} 
+                         className={inputClass}
+                       >
+                         {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                       </select>
+                     </div>
+                     
+                     {["Class 9", "Class 10", "SSC 2026"].includes(manageStudent.class_name) && (
+                       <div>
+                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Group</label>
+                         <select value={manageStudent.student_group || ""} onChange={(e) => setManageStudent({...manageStudent, student_group: e.target.value})} className={inputClass}>
+                           <option value="">Select Group</option>
+                           {GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
+                         </select>
+                       </div>
+                     )}
+
+                     <div className={["Class 9", "Class 10", "SSC 2026"].includes(manageStudent.class_name) ? "md:col-span-2" : "md:col-span-1"}>
+                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Address</label>
+                       <input type="text" value={manageStudent.address || ""} onChange={(e) => setManageStudent({...manageStudent, address: e.target.value})} className={inputClass} />
+                     </div>
                    </div>
-                   <div className="text-sm"><strong>Phone:</strong> {manageStudent.phone_number || manageStudent.phone}</div>
+
+                   <button 
+                     onClick={handleUpdateStudentDetails} 
+                     disabled={isUpdatingDetails} 
+                     className="w-full mt-6 py-3.5 bg-blue-600 text-white rounded-xl font-black shadow-sm hover:bg-blue-700 transition-colors"
+                   >
+                     {isUpdatingDetails ? "Saving Details..." : "💾 Save Profile Changes"}
+                   </button>
                  </div>
+
                  <div className="space-y-6">
                    <div className="bg-blue-50/50 rounded-2xl p-6 border border-blue-100">
                      <h3 className="text-sm font-black text-blue-800 mb-3 uppercase">📷 Update Picture</h3>
-                     <div className="flex items-center gap-4">
-                       {updateStudentImage ? <img src={updateStudentImage} className="w-14 h-14 rounded-full object-cover" /> : manageStudent.profile_image ? <img src={manageStudent.profile_image} className="w-14 h-14 rounded-full object-cover" /> : <div className="w-14 h-14 bg-blue-100 text-blue-400 rounded-full flex items-center justify-center text-xl">👤</div>}
-                       <div className="flex-1 w-full">
+                     <div className="flex flex-col items-center gap-3">
+                       {updateStudentImage ? <img src={updateStudentImage} className="w-20 h-20 rounded-full object-cover shadow-sm border border-white" /> : manageStudent.profile_image ? <img src={manageStudent.profile_image} className="w-20 h-20 rounded-full object-cover shadow-sm border border-white" /> : <div className="w-20 h-20 bg-blue-100 text-blue-400 rounded-full flex items-center justify-center text-3xl">👤</div>}
+                       <div className="w-full">
                          <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, setUpdateStudentImage)} className="text-xs w-full mb-2" />
                          <button onClick={handleUpdateStudentImageAPI} disabled={isUpdatingImage || !updateStudentImage} className="w-full px-4 py-2 bg-blue-600 text-white text-sm rounded-lg font-bold hover:bg-blue-700">Upload Image</button>
                        </div>
                      </div>
                    </div>
-                   <div className="bg-emerald-50/50 rounded-2xl p-6 border border-emerald-100">
-                     <h3 className="text-sm font-black text-emerald-800 mb-3 uppercase">🔑 Reset Password</h3>
+                   
+                   <div className="bg-purple-50/50 rounded-2xl p-6 border border-purple-100">
+                     <h3 className="text-sm font-black text-purple-800 mb-3 uppercase">🏷️ Update Group</h3>
                      <div className="flex gap-3">
-                       <input type="text" value={adminResetPass} onChange={(e) => setAdminResetPass(e.target.value)} placeholder="New password..." className="w-full px-4 py-2 rounded-lg border border-emerald-200 text-sm font-medium outline-none" />
-                       <button onClick={handleAdminPasswordReset} disabled={isResetting} className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700">Update</button>
+                       <select value={editGroup} onChange={(e) => setEditGroup(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-purple-200 text-sm font-medium outline-none bg-white">
+                         <option value="">No Group</option>
+                         {GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
+                       </select>
+                       <button onClick={handleUpdateGroup} disabled={isUpdatingGroup} className="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition-colors">Update</button>
                      </div>
                    </div>
+
+                   <div className="bg-emerald-50/50 rounded-2xl p-6 border border-emerald-100">
+                     <h3 className="text-sm font-black text-emerald-800 mb-3 uppercase">🔑 Reset Password</h3>
+                     <div className="flex flex-col gap-3">
+                       <input type="text" value={adminResetPass} onChange={(e) => setAdminResetPass(e.target.value)} placeholder="New password..." className="w-full px-4 py-2 rounded-lg border border-emerald-200 text-sm font-medium outline-none" />
+                       <button onClick={handleAdminPasswordReset} disabled={isResetting} className="w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700">Update Password</button>
+                     </div>
+                   </div>
+
                    <div className="bg-red-50/50 rounded-2xl p-6 border border-red-100">
                      <h3 className="text-sm font-black text-red-800 mb-3 uppercase">🗑️ Danger Zone</h3>
                      <button onClick={() => setShowDeleteModal(true)} className="w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm shadow-sm">Remove Student</button>
@@ -405,7 +520,9 @@ function AdminContent() {
                           <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-xs font-bold">{student.class_name}</span>
                           {student.student_group && <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md text-xs font-bold ml-2">{student.student_group}</span>}
                         </td>
-                        <td className="p-4 text-center"><button onClick={() => setManageStudent(student)} className="px-4 py-1.5 bg-slate-800 text-white rounded-lg font-bold text-xs active:scale-95 transition-transform">⚙️ Manage</button></td>
+                        <td className="p-4 text-center">
+                          <button onClick={() => { setManageStudent(student); setEditGroup(student.student_group || ""); }} className="px-4 py-1.5 bg-slate-800 text-white rounded-lg font-bold text-xs active:scale-95 transition-transform">⚙️ Manage</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -463,7 +580,6 @@ function AdminContent() {
                   <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mother's Name</label><input type="text" value={mothersName} onChange={(e) => setMothersName(e.target.value)} placeholder="Mother's Name" className={inputClass} /></div>
                 </div>
                 
-                {/* 🔴 UPDATE: Added Group Field (Conditional) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                   <div className={["Class 9", "Class 10", "SSC 2026"].includes(className) ? "md:col-span-1" : "md:col-span-2"}>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Class *</label>
@@ -505,13 +621,22 @@ function AdminContent() {
             <button onClick={() => {setResultTab("manage"); setManageResult(null);}} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${resultTab === "manage" ? 'bg-slate-800 text-white shadow-sm' : 'bg-transparent text-slate-600 hover:bg-slate-50'}`}>📋 Manage Results</button>
           </div>
 
-          {/* 🟢 PUBLISH TAB */}
           {resultTab === "publish" && (
             <div className="bg-[#f8fafc] rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 max-w-6xl mx-auto">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
                 <div><label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Exam Name *</label><select value={batchExamName} onChange={(e) => setBatchExamName(e.target.value)} className={inputClass}><option value="">-- Select Exam --</option>{EXAM_NAMES.map(ex => <option key={ex} value={ex}>{ex}</option>)}</select></div>
                 <div><label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Class *</label><select value={batchClass} onChange={(e) => { setBatchClass(e.target.value); setBatchSubject(""); setBatchGroup(""); }} className={inputClass}><option value="">-- Select Class --</option>{CLASSES.map(cls => <option key={cls} value={cls}>{cls}</option>)}</select></div>
-                {isSeniorClass && (<div><label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Group *</label><select value={batchGroup} onChange={(e) => { setBatchGroup(e.target.value); setBatchSubject(""); }} className={inputClass}><option value="">-- Select Group --</option>{GROUPS.map(grp => <option key={grp} value={grp}>{grp}</option>)}</select></div>)}
+                {isSeniorClass && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Group *</label>
+                    <select value={batchGroup} onChange={(e) => { setBatchGroup(e.target.value); setBatchSubject(""); }} className={inputClass}>
+                      <option value="">-- Select Group --</option>
+                      {/* 🔴 NEW: All Groups option */}
+                      <option value="All">All Groups (Common Subjects)</option>
+                      {GROUPS.map(grp => <option key={grp} value={grp}>{grp}</option>)}
+                    </select>
+                  </div>
+                )}
                 
                 <div className={isSeniorClass ? "md:col-span-3 lg:col-span-3" : "md:col-span-1"}>
                   <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Subject *</label>
@@ -547,7 +672,9 @@ function AdminContent() {
                 <div className="border border-slate-200 rounded-2xl overflow-hidden mb-8 shadow-sm bg-white">
                   <div className="bg-slate-800 text-white p-5 flex justify-between items-center">
                     <div>
-                      <h3 className="font-bold text-lg tracking-wide">{batchClass} {batchGroup && `- ${batchGroup}`}</h3>
+                      <h3 className="font-bold text-lg tracking-wide">
+                        {batchClass} {batchGroup === "All" ? "(All Groups)" : (batchGroup ? `- ${batchGroup}` : "")}
+                      </h3>
                       <p className="text-xs text-slate-300 font-medium mt-1">Provide marks for {batchSubject}</p>
                     </div>
                     <div className="bg-slate-700/50 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-600">
@@ -576,7 +703,9 @@ function AdminContent() {
                             <tr key={std.student_id} className={`hover:bg-slate-50 transition-colors`}>
                               <td className="p-4">
                                 <div className="font-bold text-slate-800 text-sm">{std.full_name}</div>
-                                <div className="text-xs font-medium text-slate-500 mt-0.5">ID: {std.student_id}</div>
+                                <div className="text-xs font-medium text-slate-500 mt-0.5">
+                                  ID: {std.student_id} {std.student_group && `| ${std.student_group}`}
+                                </div>
                               </td>
                               <td className="p-4"><input type="number" value={marks.cq} onChange={(e) => handleBatchMarkChange(std.student_id, "cq", e.target.value)} placeholder="0" className={tableNumberBoxClass} /></td>
                               <td className="p-4"><input type="number" value={marks.mcq} onChange={(e) => handleBatchMarkChange(std.student_id, "mcq", e.target.value)} placeholder="0" className={tableNumberBoxClass} /></td>
@@ -590,7 +719,7 @@ function AdminContent() {
                             </tr>
                           );
                         })}
-                        {classStudents.length === 0 && <tr><td colSpan={6} className="p-12 text-center font-bold text-sm text-slate-400">No students found in this group.</td></tr>}
+                        {classStudents.length === 0 && <tr><td colSpan={6} className="p-12 text-center font-bold text-sm text-slate-400">No students found for this selection.</td></tr>}
                       </tbody>
                     </table>
                   </div>
@@ -603,7 +732,6 @@ function AdminContent() {
             </div>
           )}
 
-          {/* 🟢 MANAGE TAB */}
           {resultTab === "manage" && (
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden p-6">
               

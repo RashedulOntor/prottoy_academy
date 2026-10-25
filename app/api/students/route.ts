@@ -12,7 +12,6 @@ export async function GET(request: Request) {
 
     db = await connectToDatabase();
     
-    // অটোমেটিক কলাম অ্যাড করার লজিক (যাতে ডাটাবেসে এরর না দেয়)
     try { await db.query("ALTER TABLE students ADD COLUMN student_group VARCHAR(100) DEFAULT NULL"); } catch (e) {}
     
     let query = 'SELECT * FROM students WHERE is_archived = FALSE OR is_archived IS NULL ORDER BY student_id ASC';
@@ -38,7 +37,6 @@ export async function POST(request: Request) {
   let db;
   try {
     const body = await request.json();
-    // 🔴 UPDATE: Added studentGroup
     const { fullName, fathersName, mothersName, className, studentGroup, phone, address, profile_image } = body;
 
     const generatedUsername = phone;
@@ -50,10 +48,8 @@ export async function POST(request: Request) {
 
     db = await connectToDatabase();
 
-    // 🔴 NEW: Safely add student_group column if it doesn't exist
     try { await db.query("ALTER TABLE students ADD COLUMN student_group VARCHAR(100) DEFAULT NULL"); } catch (err) {}
 
-    // 1. Insert credentials into users table
     const [userResult]: any = await db.query(
       'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
       [generatedUsername, defaultPassword, 'student']
@@ -61,7 +57,6 @@ export async function POST(request: Request) {
 
     const newUserId = userResult.insertId;
 
-    // 2. Insert detailed profile into students table including student_group
     await db.query(
       'INSERT INTO students (student_id, full_name, fathers_name, mothers_name, class_name, student_group, phone_number, address, profile_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [newUserId, fullName, fathersName, mothersName, className, studentGroup || null, phone, address, profile_image || null]
@@ -145,7 +140,6 @@ export async function PUT(request: Request) {
         try {
           await db.query('UPDATE users SET password = ? WHERE user_id = ?', [newPassword, id]);
         } catch (fallbackErr) {
-          console.error("Database column error:", fallbackErr);
           throw fallbackErr;
         }
       }
@@ -161,22 +155,30 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: true, message: 'Profile image updated successfully!' }, { status: 200 });
     }
 
-    // 🔴 UPDATE: Handle General Profile Update including Group
-    const { id, fullName, fathersName, mothersName, className, studentGroup, address } = body;
+    // 🔴 UPDATE: Handle Full A-Z Profile Update (Including Phone Number & Users Login ID)
+    const { id, fullName, fathersName, mothersName, className, studentGroup, address, phone } = body;
 
     if (!id) return NextResponse.json({ success: false, message: 'Student ID is required for update' }, { status: 400 });
 
     db = await connectToDatabase();
 
-    let updateQuery = 'UPDATE students SET full_name = ?, fathers_name = ?, mothers_name = ?, class_name = ?, address = ? WHERE student_id = ?';
-    let updateParams = [fullName, fathersName, mothersName, className, address, id];
+    let updateQuery = 'UPDATE students SET full_name = ?, fathers_name = ?, mothers_name = ?, class_name = ?, phone_number = ?, address = ? WHERE student_id = ?';
+    let updateParams = [fullName, fathersName, mothersName, className, phone, address, id];
 
     if (studentGroup !== undefined) {
-       updateQuery = 'UPDATE students SET full_name = ?, fathers_name = ?, mothers_name = ?, class_name = ?, student_group = ?, address = ? WHERE student_id = ?';
-       updateParams = [fullName, fathersName, mothersName, className, studentGroup, address, id];
+       updateQuery = 'UPDATE students SET full_name = ?, fathers_name = ?, mothers_name = ?, class_name = ?, student_group = ?, phone_number = ?, address = ? WHERE student_id = ?';
+       updateParams = [fullName, fathersName, mothersName, className, studentGroup, phone, address, id];
     }
 
     await db.query(updateQuery, updateParams);
+
+    // Update login username to match new phone number
+    if (phone) {
+      try { await db.query('UPDATE users SET username = ? WHERE id = ?', [phone, id]); } 
+      catch (err) {
+        try { await db.query('UPDATE users SET username = ? WHERE user_id = ?', [phone, id]); } catch (e) {}
+      }
+    }
 
     return NextResponse.json({ success: true, message: 'Profile updated successfully!' }, { status: 200 });
     
