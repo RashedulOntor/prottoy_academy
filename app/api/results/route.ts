@@ -4,72 +4,44 @@ import { connectToDatabase } from '../../../lib/db';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const parseSubjectsSafe = (data: any) => {
-  if (!data) return [];
-  let parsedData = data;
-  let attempts = 0;
-  while (typeof parsedData === 'string' && attempts < 3) {
-    try {
-      if (parsedData.trim() === '') break;
-      parsedData = JSON.parse(parsedData);
-    } catch (e) { break; }
-    attempts++;
-  }
-  if (typeof parsedData === 'object' && parsedData !== null && !Array.isArray(parsedData)) {
-    parsedData = Object.values(parsedData);
-  }
-  return Array.isArray(parsedData) ? parsedData : [];
-};
+// অটোমেটিক টেবিল তৈরি করার ফাংশন
+async function ensureTableExists(db: any) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS batch_exam_results (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      student_id INT,
+      exam_name VARCHAR(255),
+      class_name VARCHAR(255),
+      subject_name VARCHAR(255),
+      full_marks INT,
+      highest_marks INT,
+      cq FLOAT,
+      mcq FLOAT,
+      pr FLOAT,
+      total FLOAT,
+      grade VARCHAR(10),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
 
-const getGradeAndPoint = (obtained: number, fullMarks: number = 100) => {
-  const pct = fullMarks > 0 ? (obtained / fullMarks) * 100 : 0;
-  if (pct >= 80) return { grade: 'A+', point: 5.0 };
-  if (pct >= 70) return { grade: 'A', point: 4.0 };
-  if (pct >= 60) return { grade: 'A-', point: 3.5 };
-  if (pct >= 50) return { grade: 'B', point: 3.0 };
-  if (pct >= 40) return { grade: 'C', point: 2.0 };
-  if (pct >= 33) return { grade: 'D', point: 1.0 };
-  return { grade: 'F', point: 0.0 };
-};
-
-export async function GET(request: Request) {
+export async function GET() {
   let db;
   try {
-    const { searchParams } = new URL(request.url);
-    const studentId = searchParams.get('studentId');
-
     db = await connectToDatabase();
-
-    let query = `
-      SELECT r.*, s.full_name, s.class_name 
-      FROM exam_results r 
-      LEFT JOIN students s ON r.student_id = s.student_id 
+    await ensureTableExists(db);
+    
+    // স্টুডেন্টের নামের সাথে রেজাল্ট জয়েন করে আনা হচ্ছে
+    const [results] = await db.query(`
+      SELECT r.*, s.full_name 
+      FROM batch_exam_results r
+      JOIN students s ON r.student_id = s.student_id
       ORDER BY r.id DESC
-    `;
-    let params: any[] = [];
-
-    if (studentId) {
-      query = `
-        SELECT r.*, s.full_name, s.class_name 
-        FROM exam_results r 
-        LEFT JOIN students s ON r.student_id = s.student_id 
-        WHERE r.student_id = ? 
-        ORDER BY r.id DESC
-      `;
-      params = [studentId];
-    }
-
-    const [rows]: any = await db.query(query, params);
-
-    const formatted = rows.map((row: any) => ({
-      ...row,
-      subjects: row.marks_data || row.subjects,
-      marks_data: row.marks_data || row.subjects
-    }));
-
-    return NextResponse.json({ success: true, data: formatted }, { status: 200 });
+    `);
+    
+    return NextResponse.json({ success: true, data: results }, { status: 200 });
   } catch (error) {
-    console.error('GET /api/results error:', error);
+    console.error("GET RESULTS ERROR:", error);
     return NextResponse.json({ success: false, message: 'Failed to fetch results' }, { status: 500 });
   } finally {
     if (db) await db.end();
@@ -80,79 +52,63 @@ export async function POST(request: Request) {
   let db;
   try {
     const body = await request.json();
-    const { student_id, exam_name, subjects } = body;
-
-    if (!student_id || !exam_name || !subjects) {
-      return NextResponse.json({ success: false, message: 'Missing required fields' }, { status: 400 });
-    }
-
-    const parsedSubs = parseSubjectsSafe(subjects);
-    if (parsedSubs.length === 0) {
-      return NextResponse.json({ success: false, message: 'At least one subject is required' }, { status: 400 });
-    }
-
-    let totalMarks = 0;
-    let totalPoints = 0;
-    let isFailed = false;
-
-    // 🔴 CQ, MCQ, PR এবং Highest Marks ডাটাবেসে অবিকল সেভ রাখা হচ্ছে
-    const processedSubjects = parsedSubs.map((sub: any) => {
-      const full = Number(sub.fullMarks ?? sub.full_marks ?? 100);
-      const cqVal = sub.cq !== undefined && sub.cq !== "" && sub.cq !== "-" ? Number(sub.cq) : "";
-      const mcqVal = sub.mcq !== undefined && sub.mcq !== "" && sub.mcq !== "-" ? Number(sub.mcq) : "";
-      const prVal = sub.pr !== undefined && sub.pr !== "" && sub.pr !== "-" ? Number(sub.pr) : "";
-
-      const hasParts = cqVal !== "" || mcqVal !== "" || prVal !== "";
-      const obt = hasParts ? (Number(cqVal) || 0) + (Number(mcqVal) || 0) + (Number(prVal) || 0) : Number(sub.obtained ?? sub.obtained_marks ?? 0);
-      const highest = sub.highestMarks !== undefined && sub.highestMarks !== "" ? Number(sub.highestMarks) : obt;
-
-      const { grade, point } = getGradeAndPoint(obt, full);
-
-      totalMarks += obt;
-      totalPoints += point;
-      if (grade === 'F') isFailed = true;
-
-      return {
-        name: sub.name || sub.subject_name || 'Subject',
-        subject_name: sub.name || sub.subject_name || 'Subject',
-        fullMarks: full,
-        full_marks: full,
-        highestMarks: highest,
-        highest_marks: highest,
-        cq: cqVal !== "" ? cqVal : "-",
-        mcq: mcqVal !== "" ? mcqVal : "-",
-        pr: prVal !== "" ? prVal : "-",
-        obtained: obt,
-        obtained_marks: obt,
-        grade,
-        gp: point.toFixed(2)
-      };
-    });
-
-    const rawGpa = isFailed ? 0.0 : totalPoints / processedSubjects.length;
-    const finalGpa = Number(rawGpa.toFixed(2));
-    let finalGrade = 'F';
-
-    if (!isFailed) {
-      if (finalGpa >= 5.0) finalGrade = 'A+';
-      else if (finalGpa >= 4.0) finalGrade = 'A';
-      else if (finalGpa >= 3.5) finalGrade = 'A-';
-      else if (finalGpa >= 3.0) finalGrade = 'B';
-      else if (finalGpa >= 2.0) finalGrade = 'C';
-      else if (finalGpa >= 1.0) finalGrade = 'D';
-    }
-
+    const { exam_name, class_name, subject_name, full_marks, highest_marks, marks_data } = body;
+    
     db = await connectToDatabase();
+    await ensureTableExists(db);
 
+    // লুপ চালিয়ে প্রত্যেক স্টুডেন্টের রেজাল্ট সেভ বা আপডেট করা
+    for (const student_id of Object.keys(marks_data)) {
+      const m = marks_data[student_id];
+      if (m.total !== "" && m.total !== null) {
+        
+        // আগে থেকে এই পরীক্ষার রেজাল্ট আছে কি না চেক করা
+        const [existing] = await db.query(
+          'SELECT id FROM batch_exam_results WHERE student_id=? AND exam_name=? AND subject_name=?',
+          [student_id, exam_name, subject_name]
+        );
+
+        if ((existing as any[]).length > 0) {
+          // থাকলে আপডেট
+          await db.query(
+            'UPDATE batch_exam_results SET cq=?, mcq=?, pr=?, total=?, grade=?, full_marks=?, highest_marks=? WHERE id=?',
+            [m.cq || 0, m.mcq || 0, m.pr || 0, m.total, m.grade, full_marks, highest_marks || 0, (existing as any[])[0].id]
+          );
+        } else {
+          // না থাকলে ইনসার্ট
+          await db.query(
+            'INSERT INTO batch_exam_results (student_id, exam_name, class_name, subject_name, full_marks, highest_marks, cq, mcq, pr, total, grade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [student_id, exam_name, class_name, subject_name, full_marks, highest_marks || 0, m.cq || 0, m.mcq || 0, m.pr || 0, m.total, m.grade]
+          );
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true, message: 'Batch Results Published Successfully!' }, { status: 201 });
+  } catch (error) {
+    console.error("POST RESULTS ERROR:", error);
+    return NextResponse.json({ success: false, message: 'Failed to save results.' }, { status: 500 });
+  } finally {
+    if (db) await db.end();
+  }
+}
+
+export async function PUT(request: Request) {
+  let db;
+  try {
+    const body = await request.json();
+    const { id, cq, mcq, pr, total, grade } = body;
+    
+    db = await connectToDatabase();
     await db.query(
-      'INSERT INTO exam_results (student_id, exam_name, marks_data, total_marks, gpa, grade) VALUES (?, ?, ?, ?, ?, ?)',
-      [student_id, exam_name, JSON.stringify(processedSubjects), totalMarks, finalGpa, finalGrade]
+      'UPDATE batch_exam_results SET cq=?, mcq=?, pr=?, total=?, grade=? WHERE id=?',
+      [cq || 0, mcq || 0, pr || 0, total, grade, id]
     );
 
-    return NextResponse.json({ success: true, message: 'Result published successfully!' }, { status: 201 });
-  } catch (error: any) {
-    console.error('POST /api/results error:', error);
-    return NextResponse.json({ success: false, message: error.message || 'Failed to publish result' }, { status: 500 });
+    return NextResponse.json({ success: true, message: 'Result updated successfully!' }, { status: 200 });
+  } catch (error) {
+    console.error("PUT RESULTS ERROR:", error);
+    return NextResponse.json({ success: false, message: 'Failed to update result' }, { status: 500 });
   } finally {
     if (db) await db.end();
   }
@@ -163,13 +119,13 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ success: false, message: 'Result ID required' }, { status: 400 });
 
     db = await connectToDatabase();
-    await db.query('DELETE FROM exam_results WHERE id = ?', [id]);
+    await db.query('DELETE FROM batch_exam_results WHERE id = ?', [id]);
 
     return NextResponse.json({ success: true, message: 'Result deleted successfully!' }, { status: 200 });
   } catch (error) {
+    console.error("DELETE RESULTS ERROR:", error);
     return NextResponse.json({ success: false, message: 'Failed to delete result' }, { status: 500 });
   } finally {
     if (db) await db.end();

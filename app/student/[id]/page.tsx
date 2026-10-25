@@ -15,70 +15,27 @@ const otherFoundingTeachers = [
   { id: 905, name: "Sayan Mahmud Mahi", designation: "Instructor", education: "B.Sc in Textile Engineering (studying) at Jamalpur Textile Engineering College", subjects: "Science", experience: "3+ Years", image: "/faculty/sayan.jpg" }
 ];
 
-const parseSubjectsSafe = (data: any) => {
-  if (!data) return [];
-  let parsedData = data;
-  let attempts = 0;
-  while (typeof parsedData === 'string' && attempts < 3) {
-    try {
-      if (parsedData.trim() === '') break;
-      if (parsedData.includes('[object Object]')) return [];
-      parsedData = JSON.parse(parsedData);
-    } catch (error) { break; }
-    attempts++;
-  }
-  if (typeof parsedData === 'object' && parsedData !== null && !Array.isArray(parsedData)) parsedData = Object.values(parsedData);
-  if (Array.isArray(parsedData)) {
-    return parsedData.map(item => {
-      if (typeof item === 'string') {
-        try { return JSON.parse(item); } catch(e) { return null; }
-      }
-      return item;
-    }).filter(Boolean);
-  }
-  return [];
-};
-
-const getSubjectGradeAndGP = (sub: any) => {
-  const full = Number(sub.full_marks || sub.fullMarks || 100);
-  const obt = Number(sub.obtained_marks ?? sub.obtained ?? 0);
-  const pct = full > 0 ? (obt / full) * 100 : 0;
-
-  if (pct >= 80) return { grade: "A+", gpa: 5.0 };
-  if (pct >= 70) return { grade: "A", gpa: 4.0 };
-  if (pct >= 60) return { grade: "A-", gpa: 3.5 };
-  if (pct >= 50) return { grade: "B", gpa: 3.0 };
-  if (pct >= 40) return { grade: "C", gpa: 2.0 };
-  if (pct >= 33) return { grade: "D", gpa: 1.0 };
-  return { grade: "F", gpa: 0.0 };
-};
-
-// 🔴 গ্রেড এবং প্রাপ্ত নম্বরের শতকরা হার অনুযায়ী অটোমেটিক কমেন্ট / রিমার্কস জেনারেটর
 const getDynamicRemark = (grade: string, totalObtained: number, totalFull: number) => {
   const percentage = totalFull > 0 ? (totalObtained / totalFull) * 100 : 0;
-
-  if (grade === "F") {
-    return "❌ Unsatisfactory (Failed)! Don't lose hope—identify your weak areas, work hard, and prepare strongly for the next exam.";
-  }
-  if (percentage >= 90) {
-    return "🌟 Outstanding Performance! Excellent result, keep up this brilliant spirit and carry on!";
-  }
-  if (grade === "A+") {
-    return "🎉 Excellent Result! You have done a wonderful job. Carry on and aim even higher!";
-  }
-  if (grade === "A") {
-    return "👏 Very Good Performance! With a little more focus, you can easily achieve A+. Keep trying!";
-  }
-  if (grade === "A-") {
-    return "👍 Good Result! You have great potential. Study more attentively to reach the top grade.";
-  }
-  if (grade === "B") {
-    return "📚 Satisfactory! However, you need more regular practice and dedication to do better in the next exam.";
-  }
-  if (grade === "C") {
-    return "⚠️ Average Performance! Needs significant improvement and extra care in almost all subjects.";
-  }
+  if (grade === "F") return "❌ Unsatisfactory (Failed)! Don't lose hope—identify your weak areas, work hard, and prepare strongly for the next exam.";
+  if (percentage >= 90) return "🌟 Outstanding Performance! Excellent result, keep up this brilliant spirit and carry on!";
+  if (grade === "A+") return "🎉 Excellent Result! You have done a wonderful job. Carry on and aim even higher!";
+  if (grade === "A") return "👏 Very Good Performance! With a little more focus, you can easily achieve A+. Keep trying!";
+  if (grade === "A-") return "👍 Good Result! You have great potential. Study more attentively to reach the top grade.";
+  if (grade === "B") return "📚 Satisfactory! However, you need more regular practice and dedication to do better in the next exam.";
+  if (grade === "C") return "⚠️ Average Performance! Needs significant improvement and extra care in almost all subjects.";
   return "❗ Below Average! You passed marginally. Work hard and consult your teachers regularly.";
+};
+
+const getSubjectGradeAndGP = (obt: number, full: number) => {
+  const pct = full > 0 ? (obt / full) * 100 : 0;
+  if (pct >= 80) return { grade: "A+", gp: 5.0 };
+  if (pct >= 70) return { grade: "A", gp: 4.0 };
+  if (pct >= 60) return { grade: "A-", gp: 3.5 };
+  if (pct >= 50) return { grade: "B", gp: 3.0 };
+  if (pct >= 40) return { grade: "C", gp: 2.0 };
+  if (pct >= 33) return { grade: "D", gp: 1.0 };
+  return { grade: "F", gp: 0.0 };
 };
 
 function StudentContent() {
@@ -94,7 +51,6 @@ function StudentContent() {
   const [faculties, setFaculties] = useState<any[]>([]);
   const [myPayments, setMyPayments] = useState<any[]>([]);
   const [myResults, setMyResults] = useState<any[]>([]);
-  const [resultViewMode, setResultViewMode] = useState<"integrated" | "single">("integrated");
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ fullName: "", fathersName: "", mothersName: "", className: "", address: "" });
@@ -153,7 +109,11 @@ function StudentContent() {
     try {
       const res = await fetch(`/api/results?studentId=${id}&t=${new Date().getTime()}`, { cache: "no-store" });
       const data = await res.json();
-      if (data.success && Array.isArray(data.data)) setMyResults(data.data);
+      
+      if (data.success && Array.isArray(data.data)) {
+        const studentResults = data.data.filter((r: any) => String(r.student_id) === String(id));
+        setMyResults(studentResults);
+      }
     } catch (err) {}
   };
 
@@ -184,96 +144,89 @@ function StudentContent() {
     } catch (err) { alert("❌ Something went wrong."); } finally { setPassUpdateLoading(false); }
   };
 
-  const processResultItem = (examName: string, rawSubjects: any[], keyId: any) => {
-    let totalFull = 0;
-    let totalObtained = 0;
-    let totalPoints = 0;
-    let hasFailed = false;
+  const generateDisplayResults = () => {
+    if (myResults.length === 0) return [];
 
-    const processedSubs = rawSubjects.map((sub: any) => {
-      const full = Number(sub.full_marks || sub.fullMarks || 100);
-      
-      const rawCq = sub.cq ?? sub.cq_marks ?? sub.written ?? "";
-      const rawMcq = sub.mcq ?? sub.mcq_marks ?? "";
-      const rawPr = sub.pr ?? sub.practical ?? sub.pr_marks ?? "";
-
-      const cqVal = rawCq !== "" && rawCq !== "-" && rawCq !== null ? Number(rawCq) : null;
-      const mcqVal = rawMcq !== "" && rawMcq !== "-" && rawMcq !== null ? Number(rawMcq) : null;
-      const prVal = rawPr !== "" && rawPr !== "-" && rawPr !== null ? Number(rawPr) : null;
-
-      const hasBreakdown = cqVal !== null || mcqVal !== null || prVal !== null;
-      const calculatedObt = hasBreakdown ? (cqVal || 0) + (mcqVal || 0) + (prVal || 0) : Number(sub.obtained_marks ?? sub.obtained ?? 0);
-      const obt = Number(sub.obtained_marks ?? sub.obtained ?? calculatedObt);
-      const highest = sub.highestMarks || sub.highest_marks || obt;
-
-      const { grade, gpa: gp } = getSubjectGradeAndGP({ fullMarks: full, obtained: obt });
-
-      totalFull += full;
-      totalObtained += obt;
-      totalPoints += gp;
-      if (grade === "F") hasFailed = true;
-
-      return {
-        name: sub.subject_name || sub.name || "Subject",
-        fullMarks: full,
-        highestMarks: highest,
-        cq: cqVal !== null ? cqVal : "-",
-        mcq: mcqVal !== null ? mcqVal : "-",
-        pr: prVal !== null ? prVal : "-",
-        obtained: obt,
-        grade,
-        gp: gp.toFixed(2)
-      };
+    const groupedExams: Record<string, any[]> = {};
+    
+    myResults.forEach(res => {
+      const examName = res.exam_name || "Unknown Exam";
+      if (!groupedExams[examName]) groupedExams[examName] = [];
+      groupedExams[examName].push(res);
     });
 
-    const count = processedSubs.length || 1;
-    const rawGpa = hasFailed ? 0.0 : totalPoints / count;
-    const finalGpa = rawGpa.toFixed(2);
-    let finalGrade = "F";
+    const finalMarksheets: any[] = [];
 
-    if (!hasFailed) {
-      if (rawGpa >= 5.0) finalGrade = "A+";
-      else if (rawGpa >= 4.0) finalGrade = "A";
-      else if (rawGpa >= 3.5) finalGrade = "A-";
-      else if (rawGpa >= 3.0) finalGrade = "B";
-      else if (rawGpa >= 2.0) finalGrade = "C";
-      else if (rawGpa >= 1.0) finalGrade = "D";
-    }
+    Object.entries(groupedExams).forEach(([examName, subjectsArray], index) => {
+      let totalFull = 0;
+      let totalObtained = 0;
+      let totalPoints = 0;
+      let hasFailed = false;
 
-    return {
-      id: keyId,
-      exam_name: examName,
-      marks_data: processedSubs,
-      totalFull,
-      totalObtained,
-      gpa: finalGpa,
-      grade: finalGrade,
-      remark: getDynamicRemark(finalGrade, totalObtained, totalFull)
-    };
-  };
-
-  const getDisplayResults = () => {
-    if (resultViewMode === "integrated") {
-      const grouped: Record<string, { exam_name: string; subs: any[] }> = {};
-      myResults.forEach((res) => {
-        const key = res.exam_name ? res.exam_name.trim().toUpperCase() : "EXAM";
-        const arr = parseSubjectsSafe(res.marks_data || res.subjects);
-        if (arr.length === 0) return;
-        if (!grouped[key]) grouped[key] = { exam_name: res.exam_name, subs: [...arr] };
-        else grouped[key].subs = [...grouped[key].subs, ...arr];
+      const uniqueSubjectsMap: Record<string, any> = {};
+      subjectsArray.forEach(sub => {
+        const subName = sub.subject_name || "Unknown Subject";
+        uniqueSubjectsMap[subName] = sub; 
       });
-      return Object.entries(grouped).map(([k, val]) => processResultItem(val.exam_name, val.subs, k));
-    } else {
-      return myResults
-        .map((res, idx) => {
-          const arr = parseSubjectsSafe(res.marks_data || res.subjects);
-          return processResultItem(res.exam_name, arr, res.id || idx);
-        })
-        .filter((r) => r.marks_data.length > 0);
-    }
+      const uniqueSubjectsArray = Object.values(uniqueSubjectsMap);
+
+      const processedSubs = uniqueSubjectsArray.map((sub: any) => {
+        const full = Number(sub.full_marks || 100);
+        const obt = Number(sub.total || 0);
+        const highest = Number(sub.highest_marks || obt);
+        
+        const cq = sub.cq !== null && sub.cq !== "" ? Number(sub.cq) : "-";
+        const mcq = sub.mcq !== null && sub.mcq !== "" ? Number(sub.mcq) : "-";
+        const pr = sub.pr !== null && sub.pr !== "" ? Number(sub.pr) : "-";
+        
+        const { grade, gp } = getSubjectGradeAndGP(obt, full);
+
+        totalFull += full;
+        totalObtained += obt;
+        totalPoints += gp;
+        if (grade === "F") hasFailed = true;
+
+        return {
+          name: sub.subject_name || "Unknown Subject",
+          fullMarks: full,
+          highestMarks: highest,
+          cq, mcq, pr,
+          obtained: obt,
+          grade,
+          gp: gp.toFixed(2)
+        };
+      });
+
+      const count = processedSubs.length || 1;
+      const rawGpa = hasFailed ? 0.0 : totalPoints / count;
+      const finalGpa = rawGpa.toFixed(2);
+      let finalGrade = "F";
+
+      if (!hasFailed) {
+        if (rawGpa >= 5.0) finalGrade = "A+";
+        else if (rawGpa >= 4.0) finalGrade = "A";
+        else if (rawGpa >= 3.5) finalGrade = "A-";
+        else if (rawGpa >= 3.0) finalGrade = "B";
+        else if (rawGpa >= 2.0) finalGrade = "C";
+        else if (rawGpa >= 1.0) finalGrade = "D";
+      }
+
+      finalMarksheets.push({
+        id: `exam_${index}`,
+        exam_name: examName,
+        marks_data: processedSubs,
+        totalFull,
+        totalObtained,
+        gpa: finalGpa,
+        grade: finalGrade,
+        remark: getDynamicRemark(finalGrade, totalObtained, totalFull)
+      });
+    });
+
+    return finalMarksheets;
   };
 
-  const displayResults = getDisplayResults();
+  const displayResults = generateDisplayResults();
   const inputClass = "w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-slate-900 font-bold shadow-sm outline-none";
 
   if (loading) return <div className="min-h-screen flex justify-center items-center bg-[#f8fafc] text-blue-600 font-bold text-xl">Loading your portal...</div>;
@@ -285,7 +238,6 @@ function StudentContent() {
     <div className="w-full min-h-screen print:min-h-0 bg-[#f8fafc] print:bg-white text-slate-900 font-sans pb-20 print:pb-0">
       <div className="max-w-7xl mx-auto w-full p-4 md:p-8 print:p-0 print:max-w-none">
         
-        {/* Top Header */}
         <div className="no-print print:hidden flex justify-between items-center bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
           <div>
             <h2 className="text-xl md:text-2xl font-black text-slate-800">Student Portal</h2>
@@ -296,7 +248,6 @@ function StudentContent() {
           </button>
         </div>
 
-        {/* Sticky Back Button */}
         {activeTab !== "dashboard" && (
           <div className="no-print print:hidden mb-6">
             <button
@@ -308,7 +259,6 @@ function StudentContent() {
           </div>
         )}
 
-        {/* DASHBOARD */}
         {activeTab === "dashboard" && (
           <div className="animate-fade-in">
             <div className="relative bg-[#0a192f] text-white rounded-[2rem] p-8 md:p-12 mb-10 overflow-hidden shadow-2xl">
@@ -332,7 +282,7 @@ function StudentContent() {
                 <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase">My Payments</h3>
                 <p className="text-2xl font-black text-slate-800 flex justify-between">History <span>➔</span></p>
               </div>
-              <div onClick={() => window.open("https://youtube.com/@prottoyacademy", "_blank")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer">
+              <div onClick={() => window.open("https://youtube.com/@dreamupacademy", "_blank")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer">
                 <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center text-2xl mb-6">🎥</div>
                 <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase">Class Lectures</h3>
                 <p className="text-2xl font-black text-slate-800 flex justify-between">Watch <span>➔</span></p>
@@ -346,7 +296,6 @@ function StudentContent() {
           </div>
         )}
 
-        {/* PROFILE SECTION */}
         {activeTab === "profile" && studentData && (
           <div className="max-w-3xl mx-auto">
             <div className="flex justify-between items-center mb-6">
@@ -383,7 +332,6 @@ function StudentContent() {
           </div>
         )}
 
-        {/* FACULTY & PAYMENTS & CLASSES */}
         {activeTab === "faculty" && (
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {faculties.map((teacher) => (
@@ -419,24 +367,17 @@ function StudentContent() {
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* 🔴 Official Marksheet      */}
-        {/* ========================================================================= */}
         {activeTab === "results" && (
           <div>
             <div className="no-print print:hidden flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div>
                 <h1 className="text-3xl font-black text-slate-900">Academic Marksheet</h1>
-                <p className="text-sm text-slate-500 font-semibold"> Print </p>
+                <p className="text-sm text-slate-500 font-semibold"> Print your result easily </p>
               </div>
               <div className="flex flex-wrap gap-3">
-                <div className="flex bg-white p-1 rounded-xl border border-slate-200">
-                  <button onClick={() => setResultViewMode('integrated')} className={`px-4 py-2 rounded-lg font-bold text-xs ${resultViewMode === 'integrated' ? 'bg-[#0a192f] text-white' : 'text-slate-600'}`}>📑 Combined View</button>
-                  <button onClick={() => setResultViewMode('single')} className={`px-4 py-2 rounded-lg font-bold text-xs ${resultViewMode === 'single' ? 'bg-[#0a192f] text-white' : 'text-slate-600'}`}>📄 Single View</button>
-                </div>
                 {displayResults.length > 0 && (
-                  <button onClick={() => window.print()} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-md flex items-center gap-2 text-sm">
-                    🖨️ Print 
+                  <button onClick={() => window.print()} className="px-6 py-2.5 bg-[#0a192f] hover:bg-slate-800 text-white font-black rounded-xl shadow-md flex items-center gap-2 text-sm">
+                    🖨️ Print Marksheet 
                   </button>
                 )}
               </div>
@@ -446,7 +387,6 @@ function StudentContent() {
               {displayResults.length > 0 ? displayResults.map((res: any) => (
                 <div key={res.id} className="marksheet-page relative overflow-hidden bg-white mx-auto max-w-[920px] p-6 md:p-8 border-[3px] border-black shadow-2xl print:shadow-none text-black">
                   
-                  {/* 🔴 CENTER LOGO WATERMARK (জলছাপ) */}
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0">
                     <img 
                       src="/prottoy academy logo.png" 
@@ -455,14 +395,11 @@ function StudentContent() {
                     />
                   </div>
 
-                  {/* MAIN CONTENT ABOVE WATERMARK */}
                   <div className="relative z-10">
-                    
-                    {/* 1. INSTITUTION BILINGUAL HEADER */}
                     <div className="border-b-2 border-black pb-3 mb-4">
                       <div className="grid grid-cols-1 md:grid-cols-[1fr_90px_1fr] print:grid-cols-[1fr_80px_1fr] items-center gap-2 text-center">
                         <div className="text-center md:text-left print:text-left">
-                          <h2 className="text-2xl font-black text-emerald-800 tracking-tight">প্রত্যয় একাডেমি</h2>
+                          <h2 className="text-2xl font-black text-emerald-800 tracking-tight">প্রত্যয় একাডেমি</h2>
                           <p className="text-xs font-bold text-gray-800">ভাবকী বাজার, মেলান্দহ, জামালপুর</p>
                           <p className="text-[11px] font-semibold text-gray-700">স্থাপিতঃ ২০২৫ | একাডেমিক পোর্টাল</p>
                         </div>
@@ -473,7 +410,7 @@ function StudentContent() {
 
                         <div className="text-center md:text-right print:text-right">
                           <h2 className="text-xl font-black text-emerald-800 uppercase tracking-tight">PROTTOY ACADEMY</h2>
-                          <p className="text-xs font-bold text-gray-800">P.O: Bhabki Bazar, Upazilla: Melandah, Jamalpur</p>
+                          <p className="text-xs font-bold text-gray-800">Bhabki Bazar, Melandah, Jamalpur</p>
                         <p className="text-[11px] font-semibold text-gray-700">ESTD:- 2025 | Academic Portal </p>
                         </div>
                       </div>
@@ -485,12 +422,16 @@ function StudentContent() {
                       </div>
                     </div>
 
-                    {/* 2. STUDENT DETAILS (LEFT) & GRADING SCALE + SUMMARY (RIGHT) */}
                     <div className="grid grid-cols-1 md:grid-cols-[1fr_240px] print:grid-cols-[1fr_220px] gap-4 mb-3 items-start">
                       
                       <div className="text-xs space-y-1.5 font-semibold">
+                        {/* 🔴 FIXED: Dynamic Profile Picture on Marksheet */}
                         <div className="w-20 h-20 border border-black bg-gray-100/80 flex items-center justify-center rounded mb-2 overflow-hidden">
-                          <span className="text-3xl">🧑‍🎓</span>
+                          {studentData?.profile_image ? (
+                            <img src={studentData.profile_image} alt="Student" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-3xl">🧑‍🎓</span>
+                          )}
                         </div>
                         <div className="grid grid-cols-[120px_10px_1fr]"><span className="font-bold">Student Name</span><span>:</span><span className="font-black uppercase">{safeName}</span></div>
                         {studentData?.fathers_name && <div className="grid grid-cols-[120px_10px_1fr]"><span className="font-bold">Father&apos;s Name</span><span>:</span><span className="uppercase">{studentData.fathers_name}</span></div>}
@@ -543,7 +484,6 @@ function StudentContent() {
                       [ N.B: CQ = Creative Question (Written), MCQ = Multiple Choice Question, PR = Practical ]
                     </p>
 
-                    {/* 3. SUBJECT-WISE GRADE/MARKS TABLE (CALCULATE MARKS REMOVED) */}
                     <h3 className="text-center font-black text-sm underline mb-2">Subject-Wise Grade/Marks</h3>
                     
                     <div className="overflow-x-auto">
@@ -575,7 +515,7 @@ function StudentContent() {
                               <td className="border border-black p-1 font-bold">{sub.pr}</td>
                               <td className="border border-black p-1 font-black">{sub.obtained}</td>
                               <td className={`border border-black p-1 font-black ${sub.grade === 'F' ? 'text-red-600' : ''}`}>{sub.grade}</td>
-                              <td className="border border-black p-1 font-bold">{sub.gpa}</td>
+                              <td className="border border-black p-1 font-bold">{sub.gp}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -592,7 +532,6 @@ function StudentContent() {
                       </table>
                     </div>
 
-                    {/* 🔴 4. DYNAMIC REMARKS / COMMENT BOX BASED ON GRADE & MARKS */}
                     <div className="mt-4 border-[1.5px] border-black bg-gray-50/70 px-4 py-2.5 rounded flex flex-col sm:flex-row sm:items-center gap-1.5 text-xs">
                       <span className="font-black uppercase tracking-wide whitespace-nowrap text-gray-900">
                         Remarks / Comment :
@@ -602,7 +541,6 @@ function StudentContent() {
                       </span>
                     </div>
 
-                    {/* 5. SIGNATURE FOOTER */}
                     <div className="flex justify-between items-end mt-12 pt-4 px-4 text-xs font-bold">
                       <div className="text-center border-t border-black pt-1 w-36">
                         Guardian&apos;s Signature
@@ -622,43 +560,18 @@ function StudentContent() {
                 <div className="bg-white rounded-3xl p-16 text-center border">
                   <p className="text-6xl mb-4">📭</p>
                   <h3 className="text-2xl font-black">No Exam Results Found</h3>
+                  <p className="text-slate-500 mt-2">Any results published by the admin will appear here.</p>
                 </div>
               )}
             </div>
 
-            {/* STRICT 1-PAGE A4 PRINT CSS */}
             <style dangerouslySetInnerHTML={{__html: `
               @media print {
-                @page {
-                  size: A4 portrait;
-                  margin: 8mm;
-                }
-                html, body {
-                  height: auto !important;
-                  overflow: visible !important;
-                  background: #ffffff !important;
-                  margin: 0 !important;
-                  padding: 0 !important;
-                  -webkit-print-color-adjust: exact !important;
-                  print-color-adjust: exact !important;
-                }
-                .no-print {
-                  display: none !important;
-                }
-                .marksheet-page {
-                  width: 100% !important;
-                  max-width: 100% !important;
-                  margin: 0 !important;
-                  padding: 15px !important;
-                  border: 2px solid #000000 !important;
-                  box-shadow: none !important;
-                  page-break-inside: avoid !important;
-                  break-inside: avoid !important;
-                  page-break-after: always;
-                }
-                .marksheet-page:last-child {
-                  page-break-after: auto;
-                }
+                @page { size: A4 portrait; margin: 8mm; }
+                html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                .no-print { display: none !important; }
+                .marksheet-page { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 15px !important; border: 2px solid #000000 !important; box-shadow: none !important; page-break-inside: avoid !important; break-inside: avoid !important; page-break-after: always; }
+                .marksheet-page:last-child { page-break-after: auto; }
               }
             `}} />
           </div>
@@ -670,7 +583,7 @@ function StudentContent() {
 
 export default function StudentDashboard() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex justify-center items-center font-black text-xl">Loading Portal...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex justify-center items-center font-black text-xl text-blue-600 animate-pulse">Loading Portal...</div>}>
       <StudentContent />
     </Suspense>
   );
