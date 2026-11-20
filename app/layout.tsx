@@ -14,10 +14,46 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Prottoy Academy",
-  description: "Integrated Education Management System — Prottoy Academy, Bhabki Bazar, Melandah, Jamalpur",
+  metadataBase: new URL("https://prottoy-academy.vercel.app"),
+  title: {
+    default: "Prottoy Academy | প্রত্যয় একাডেমি — Bhabki Bazar, Melandah, Jamalpur",
+    template: "%s | Prottoy Academy",
+  },
+  description:
+    "Prottoy Academy (প্রত্যয় একাডেমি) is a specialized academic coaching center and digital education management portal in Bhabki Bazar, Melandah, Jamalpur for Class 6–10 students.",
+  keywords: [
+    "Prottoy Academy",
+    "প্রত্যয় একাডেমি",
+    "Prottoy Academy Bhabki Bazar",
+    "প্রত্যয় একাডেমি ভাবকী বাজার",
+    "Melandah Coaching Center",
+    "Jamalpur Coaching",
+    "Student Portal Prottoy Academy",
+  ],
   icons: {
     icon: "/prottoy academy logo.png",
+    apple: "/prottoy academy logo.png",
+  },
+  openGraph: {
+    title: "Prottoy Academy | প্রত্যয় একাডেমি",
+    description:
+      "Integrated Education Management System & Academic Coaching Center — Bhabki Bazar, Melandah, Jamalpur.",
+    url: "https://prottoy-academy.vercel.app",
+    siteName: "Prottoy Academy",
+    images: [
+      {
+        url: "/prottoy academy logo.png",
+        width: 512,
+        height: 512,
+        alt: "Prottoy Academy Logo",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
