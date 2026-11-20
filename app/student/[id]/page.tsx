@@ -40,6 +40,9 @@ function StudentContent() {
   const [faculties, setFaculties] = useState<any[]>([]);
   const [myPayments, setMyPayments] = useState<any[]>([]);
   const [myResults, setMyResults] = useState<any[]>([]);
+  const [myNotices, setMyNotices] = useState<any[]>([]);
+  const [myMaterials, setMyMaterials] = useState<any[]>([]);
+  const [myAttendance, setMyAttendance] = useState<any[]>([]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -92,7 +95,7 @@ function StudentContent() {
       };
       img.onerror = () => setEditImage(base64String);
     };
-    reader.onerror = () => alert("❌ ছবিটি পড়তে সমস্যা হয়েছে। অন্য ছবি চেষ্টা করুন।");
+    reader.onerror = () => alert("❌ ছবিটি পড়তে সমস্যা হয়েছে। অন্য ছবি চেষ্টা করুন।");
   };
 
   const fetchMyData = async () => {
@@ -114,9 +117,31 @@ function StudentContent() {
             phone: myInfo.phone_number || myInfo.phone || "",
             address: myInfo.address || ""
           });
+
+          const cls = myInfo.class_name || myInfo.className || myInfo.class || "";
+          const sid = myInfo.student_id || myInfo.id;
+          fetchExtraData(cls, sid);
         }
       }
     } catch (err) {} finally { setLoading(false); }
+  };
+
+  const fetchExtraData = async (className: string, studentId: any) => {
+    try {
+      const [notRes, matRes, attRes] = await Promise.all([
+        fetch(`/api/notices?className=${encodeURIComponent(className)}&t=${Date.now()}`, { cache: "no-store" }),
+        fetch(`/api/materials?className=${encodeURIComponent(className)}&t=${Date.now()}`, { cache: "no-store" }),
+        fetch(`/api/attendance?studentId=${studentId}&t=${Date.now()}`, { cache: "no-store" }),
+      ]);
+      const notData = await notRes.json();
+      if (notData.success && Array.isArray(notData.data)) setMyNotices(notData.data);
+
+      const matData = await matRes.json();
+      if (matData.success && Array.isArray(matData.data)) setMyMaterials(matData.data);
+
+      const attData = await attRes.json();
+      if (attData.success && Array.isArray(attData.data)) setMyAttendance(attData.data);
+    } catch (e) {}
   };
 
   const fetchFaculties = async () => {
@@ -211,7 +236,6 @@ function StudentContent() {
 
   const generateDisplayResults = () => {
     if (myResults.length === 0) return [];
-
     const groupedExams: Record<string, any[]> = {};
 
     myResults.forEach(res => {
@@ -299,11 +323,16 @@ function StudentContent() {
   const safeName = studentData?.full_name || studentData?.fullName || studentData?.name || "Student";
   const safeClass = studentData?.class_name || studentData?.className || studentData?.class || "N/A";
 
+  const totalAttDays = myAttendance.length;
+  const presentDays = myAttendance.filter((a) => a.status === "Present").length;
+  const absentDays = totalAttDays - presentDays;
+  const attPercentage = totalAttDays > 0 ? Math.round((presentDays / totalAttDays) * 100) : 0;
+
   return (
     <div className="w-full min-h-screen print:min-h-0 bg-[#f8fafc] print:bg-white text-slate-900 font-sans pb-20 print:pb-0">
       <div className="max-w-7xl mx-auto w-full p-4 md:p-8 print:p-0 print:max-w-none">
 
-        {/* TOP HEADER (CLEAN) */}
+        {/* TOP HEADER */}
         <div className="no-print print:hidden flex justify-between items-center bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-200 mb-8 gap-4">
           <div>
             <h2 className="text-xl md:text-2xl font-black text-slate-800">Student Portal</h2>
@@ -329,7 +358,7 @@ function StudentContent() {
         {activeTab === "dashboard" && (
           <div className="animate-fade-in">
             {/* HERO BANNER WITH FULL-FIT PHOTO CARD & OVERLAY ID/CLASS */}
-            <div className="relative bg-[#0a192f] text-white rounded-[2rem] p-8 md:p-12 mb-10 overflow-hidden shadow-2xl">
+            <div className="relative bg-[#0a192f] text-white rounded-[2rem] p-8 md:p-12 mb-8 overflow-hidden shadow-2xl">
               <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
                 <div className="text-center md:text-left">
                   <p className="text-blue-400 font-bold tracking-widest mb-2 text-sm uppercase">Academic Overview</p>
@@ -337,7 +366,7 @@ function StudentContent() {
                     Welcome back, <span className="text-emerald-300">{safeName}</span>!
                   </h1>
                   <p className="text-slate-400 text-base md:text-lg max-w-xl font-medium">
-                    Track your academic progress, view exam results, and access all your class materials in one place.
+                    Track your academic progress, attendance, exam results, and class materials in one place.
                   </p>
                 </div>
 
@@ -359,10 +388,8 @@ function StudentContent() {
                     </div>
                   )}
 
-                  {/* Smooth Dark Gradient Overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0a192f] via-[#0a192f]/35 to-transparent" />
 
-                  {/* ID & Class on Top of Image */}
                   <div className="absolute bottom-0 inset-x-0 p-3.5 text-center">
                     <p className="text-xs font-black text-white tracking-wider drop-shadow">
                       ID: {studentData?.student_id || id}
@@ -375,31 +402,213 @@ function StudentContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div onClick={() => router.push(`?tab=profile`)} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
-                <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-2xl mb-6">👤</div>
-                <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase">My Profile</h3>
-                <p className="text-2xl font-black text-slate-800 flex justify-between">Details <span>➔</span></p>
+            {/* NOTICE CORNER PREVIEW */}
+            {myNotices.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-3xl p-5 md:p-6 mb-8 shadow-sm">
+                <div className="flex justify-between items-center mb-3">
+                  <h2 className="text-lg font-black text-amber-900 flex items-center gap-2">📢 Notice Corner</h2>
+                  <button
+                    onClick={() => router.push("?tab=notices")}
+                    className="text-xs font-black text-amber-800 hover:underline"
+                  >
+                    View All ({myNotices.length}) ➔
+                  </button>
+                </div>
+                <div className="space-y-2.5">
+                  {myNotices.slice(0, 2).map((n) => (
+                    <div key={n.id} className="bg-white p-3.5 rounded-2xl border border-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 mr-2">
+                          {n.target_class === "All" ? "General" : n.target_class}
+                        </span>
+                        <span className="font-black text-sm text-slate-800">{n.title}</span>
+                        <p className="text-xs text-slate-600 mt-0.5 line-clamp-1">{n.content}</p>
+                      </div>
+                      <span className="text-[11px] font-semibold text-slate-400 shrink-0">
+                        {n.created_at?.substring(0, 10)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div onClick={() => router.push(`?tab=payments`)} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl mb-6">💳</div>
-                <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase">My Payments</h3>
-                <p className="text-2xl font-black text-slate-800 flex justify-between">History <span>➔</span></p>
+            )}
+
+            {/* DASHBOARD CARDS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div onClick={() => router.push(`?tab=profile`)} className="bg-white p-7 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-2xl mb-5">👤</div>
+                <h3 className="text-slate-500 font-bold mb-1 text-xs uppercase">My Profile</h3>
+                <p className="text-xl font-black text-slate-800 flex justify-between">Details &amp; Edit <span>➔</span></p>
               </div>
-              <div onClick={() => window.open("https://youtube.com/@dreamupacademy", "_blank")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
-                <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center text-2xl mb-6">🎥</div>
-                <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase">Class Lectures</h3>
-                <p className="text-2xl font-black text-slate-800 flex justify-between">Watch <span>➔</span></p>
+
+              <div onClick={() => router.push(`?tab=attendance`)} className="bg-white p-7 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl mb-5">📋</div>
+                <h3 className="text-slate-500 font-bold mb-1 text-xs uppercase">My Attendance</h3>
+                <p className="text-xl font-black text-slate-800 flex justify-between">
+                  {totalAttDays > 0 ? `${attPercentage}% Present` : "Check Record"} <span>➔</span>
+                </p>
               </div>
-              <div onClick={() => router.push(`?tab=results`)} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
-                <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center text-2xl mb-6">🏆</div>
-                <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase">Exam Results</h3>
-                <p className="text-2xl font-black text-slate-800 flex justify-between">Check <span>➔</span></p>
+
+              <div onClick={() => router.push(`?tab=materials`)} className="bg-white p-7 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center text-2xl mb-5">📚</div>
+                <h3 className="text-slate-500 font-bold mb-1 text-xs uppercase">Class Materials</h3>
+                <p className="text-xl font-black text-slate-800 flex justify-between">Notes &amp; HW ({myMaterials.length}) <span>➔</span></p>
+              </div>
+
+              <div onClick={() => router.push(`?tab=results`)} className="bg-white p-7 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
+                <div className="w-14 h-14 rounded-2xl bg-purple-50 flex items-center justify-center text-2xl mb-5">🏆</div>
+                <h3 className="text-slate-500 font-bold mb-1 text-xs uppercase">Exam Results</h3>
+                <p className="text-xl font-black text-slate-800 flex justify-between">Marksheet <span>➔</span></p>
+              </div>
+
+              <div onClick={() => router.push(`?tab=notices`)} className="bg-white p-7 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
+                <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center text-2xl mb-5">📢</div>
+                <h3 className="text-slate-500 font-bold mb-1 text-xs uppercase">Notice Corner</h3>
+                <p className="text-xl font-black text-slate-800 flex justify-between">All Notices ({myNotices.length}) <span>➔</span></p>
+              </div>
+
+              <div onClick={() => router.push(`?tab=payments`)} className="bg-white p-7 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
+                <div className="w-14 h-14 rounded-2xl bg-teal-50 flex items-center justify-center text-2xl mb-5">💳</div>
+                <h3 className="text-slate-500 font-bold mb-1 text-xs uppercase">My Payments</h3>
+                <p className="text-xl font-black text-slate-800 flex justify-between">History <span>➔</span></p>
               </div>
             </div>
           </div>
         )}
 
+        {/* ATTENDANCE TAB */}
+        {activeTab === "attendance" && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <h1 className="text-3xl font-black text-slate-900">📋 My Attendance Report</h1>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 text-center">
+                <p className="text-xs font-bold text-slate-500 uppercase">Total Classes</p>
+                <p className="text-3xl font-black text-slate-800 mt-1">{totalAttDays}</p>
+              </div>
+              <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 text-center">
+                <p className="text-xs font-bold text-emerald-700 uppercase">Present</p>
+                <p className="text-3xl font-black text-emerald-700 mt-1">{presentDays}</p>
+              </div>
+              <div className="bg-red-50 p-5 rounded-2xl border border-red-200 text-center">
+                <p className="text-xs font-bold text-red-600 uppercase">Absent</p>
+                <p className="text-3xl font-black text-red-600 mt-1">{absentDays}</p>
+              </div>
+              <div className="bg-blue-50 p-5 rounded-2xl border border-blue-200 text-center">
+                <p className="text-xs font-bold text-blue-700 uppercase">Attendance %</p>
+                <p className="text-3xl font-black text-blue-700 mt-1">{attPercentage}%</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+              <table className="min-w-full text-left border-collapse">
+                <thead className="bg-slate-50 border-b text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="p-4">Date</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4">Marked By</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {myAttendance.length > 0 ? myAttendance.map((a: any, idx: number) => (
+                    <tr key={idx}>
+                      <td className="p-4 font-bold">{a.attendance_date?.substring(0, 10)}</td>
+                      <td className="p-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-black ${a.status === "Present" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+                          {a.status}
+                        </span>
+                      </td>
+                      <td className="p-4 text-sm text-slate-600 font-semibold">{a.marked_by || "Teacher"}</td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan={3} className="p-8 text-center text-slate-500 font-bold">No attendance records yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* CLASS MATERIALS TAB */}
+        {activeTab === "materials" && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-slate-900">📚 Class Materials &amp; Homework</h1>
+                <p className="text-sm text-slate-500 font-semibold">Notes, PDFs, and Homework for {safeClass}</p>
+              </div>
+              <a
+                href="https://www.youtube.com/@DreamUpAcademy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm shadow-sm"
+              >
+                ▶️ YouTube Lectures
+              </a>
+            </div>
+
+            {myMaterials.length > 0 ? (
+              <div className="space-y-4">
+                {myMaterials.map((m: any) => (
+                  <div key={m.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-blue-50 text-blue-700">{m.material_type}</span>
+                        <span className="text-xs font-bold text-slate-500">{m.subject_name} • By {m.faculty_name}</span>
+                      </div>
+                      <h3 className="text-lg font-black text-slate-900">{m.title}</h3>
+                      {m.description && <p className="text-sm text-slate-600 mt-1">{m.description}</p>}
+                      <p className="text-[11px] text-slate-400 font-semibold mt-2">{m.created_at?.substring(0, 10)}</p>
+                    </div>
+                    {m.link_url && (
+                      <a
+                        href={m.link_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-5 py-2.5 bg-[#0a192f] hover:bg-slate-800 text-white font-bold rounded-xl text-xs shrink-0"
+                      >
+                        🔗 Open Link
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 text-slate-500 font-bold">
+                No class materials uploaded for {safeClass} yet.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* NOTICE CORNER TAB */}
+        {activeTab === "notices" && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <h1 className="text-3xl font-black text-slate-900">📢 Notice Corner</h1>
+            {myNotices.length > 0 ? (
+              <div className="space-y-4">
+                {myNotices.map((n: any) => (
+                  <div key={n.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-800">
+                        {n.target_class === "All" ? "General Notice" : `${n.target_class} Notice`}
+                      </span>
+                      <span className="text-xs font-bold text-slate-400">{n.created_at?.substring(0, 10)}</span>
+                    </div>
+                    <h3 className="text-xl font-black text-slate-900">{n.title}</h3>
+                    <p className="text-slate-700 mt-2 whitespace-pre-line text-sm leading-relaxed">{n.content}</p>
+                    <p className="text-xs font-bold text-slate-400 mt-3">Posted by: {n.posted_by}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 text-slate-500 font-bold">
+                No notices available right now.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* PROFILE TAB */}
         {activeTab === "profile" && studentData && (
           <div className="max-w-3xl mx-auto">
             <div className="flex justify-between items-center mb-6">
@@ -447,83 +656,44 @@ function StudentContent() {
                 </div>
               ) : (
                 <form onSubmit={handleUpdateProfile} className="space-y-5">
-                  {/* ছবি পরিবর্তনের অপশন */}
                   <div className="flex flex-col sm:flex-row items-center gap-5 p-4 bg-slate-50 rounded-2xl border border-slate-200">
                     {editImage || studentData.profile_image ? (
-                      <img
-                        src={editImage || studentData.profile_image}
-                        alt="Preview"
-                        className="w-20 h-20 rounded-full object-cover border-2 border-blue-500 shadow-sm shrink-0"
-                      />
+                      <img src={editImage || studentData.profile_image} alt="Preview" className="w-20 h-20 rounded-full object-cover border-2 border-blue-500 shadow-sm shrink-0" />
                     ) : (
                       <div className="w-20 h-20 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-2xl shrink-0">
                         {safeName.charAt(0).toUpperCase()}
                       </div>
                     )}
                     <div className="w-full">
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                        Change Profile Picture
-                      </label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleStudentImageSelect}
-                        className="text-xs w-full"
-                      />
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Change Profile Picture</label>
+                      <input type="file" accept="image/*" onChange={handleStudentImageSelect} className="text-xs w-full" />
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Full Name *</label>
-                    <input
-                      type="text"
-                      value={editForm.fullName}
-                      onChange={e => setEditForm({ ...editForm, fullName: e.target.value })}
-                      required
-                      className={inputClass}
-                    />
+                    <input type="text" value={editForm.fullName} onChange={e => setEditForm({ ...editForm, fullName: e.target.value })} required className={inputClass} />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Father&apos;s Name</label>
-                      <input
-                        type="text"
-                        value={editForm.fathersName}
-                        onChange={e => setEditForm({ ...editForm, fathersName: e.target.value })}
-                        className={inputClass}
-                      />
+                      <input type="text" value={editForm.fathersName} onChange={e => setEditForm({ ...editForm, fathersName: e.target.value })} className={inputClass} />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mother&apos;s Name</label>
-                      <input
-                        type="text"
-                        value={editForm.mothersName}
-                        onChange={e => setEditForm({ ...editForm, mothersName: e.target.value })}
-                        className={inputClass}
-                      />
+                      <input type="text" value={editForm.mothersName} onChange={e => setEditForm({ ...editForm, mothersName: e.target.value })} className={inputClass} />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone Number</label>
-                      <input
-                        type="text"
-                        value={editForm.phone}
-                        onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
-                        placeholder="017XXXXXXXX"
-                        className={inputClass}
-                      />
+                      <input type="text" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} placeholder="017XXXXXXXX" className={inputClass} />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Address</label>
-                      <input
-                        type="text"
-                        value={editForm.address}
-                        onChange={e => setEditForm({ ...editForm, address: e.target.value })}
-                        className={inputClass}
-                      />
+                      <input type="text" value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} className={inputClass} />
                     </div>
                   </div>
 
@@ -531,11 +701,7 @@ function StudentContent() {
                     <button type="submit" disabled={!!updateMsg} className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl transition-colors">
                       {updateMsg || "💾 Save Changes"}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => { setIsEditing(false); setEditImage(""); }}
-                      className="px-8 py-4 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl transition-colors"
-                    >
+                    <button type="button" onClick={() => { setIsEditing(false); setEditImage(""); }} className="px-8 py-4 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl transition-colors">
                       Cancel
                     </button>
                   </div>
@@ -578,13 +744,6 @@ function StudentContent() {
           </div>
         )}
 
-        {activeTab === "classes" && (
-          <div className="bg-white rounded-3xl p-12 text-center shadow-sm border border-slate-200 max-w-2xl mx-auto">
-            <h2 className="text-3xl font-black mb-4">Watch Recorded Classes</h2>
-            <a href="https://www.youtube.com/@DreamUpAcademy" target="_blank" rel="noopener noreferrer" className="inline-block px-8 py-4 bg-red-600 text-white font-black rounded-xl">▶️ Open YouTube Channel</a>
-          </div>
-        )}
-
         {activeTab === "results" && (
           <div>
             <div className="no-print print:hidden flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -606,11 +765,7 @@ function StudentContent() {
                 <div key={res.id} className="marksheet-page relative overflow-hidden bg-white mx-auto max-w-[920px] p-6 md:p-8 border-[3px] border-black shadow-2xl print:shadow-none text-black">
 
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0">
-                    <img
-                      src="/prottoy academy logo.png"
-                      alt="Prottoy Academy Watermark"
-                      className="w-[340px] h-[340px] md:w-[420px] md:h-[420px] object-contain opacity-[0.08] print:opacity-[0.10]"
-                    />
+                    <img src="/prottoy academy logo.png" alt="Prottoy Academy Watermark" className="w-[340px] h-[340px] md:w-[420px] md:h-[420px] object-contain opacity-[0.08] print:opacity-[0.10]" />
                   </div>
 
                   <div className="relative z-10">
@@ -641,7 +796,6 @@ function StudentContent() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-[1fr_240px] print:grid-cols-[1fr_220px] gap-4 mb-3 items-start">
-
                       <div className="text-xs space-y-1.5 font-semibold">
                         <div className="w-20 h-20 border border-black bg-gray-100/80 flex items-center justify-center rounded mb-2 overflow-hidden">
                           {studentData?.profile_image ? (
@@ -759,18 +913,13 @@ function StudentContent() {
                     </div>
 
                     <div className="flex justify-between items-end mt-12 pt-4 px-4 text-xs font-bold">
-                      <div className="text-center border-t border-black pt-1 w-36">
-                        Guardian&apos;s Signature
-                      </div>
-                      <div className="text-center border-t border-black pt-1 w-36">
-                        Class Teacher
-                      </div>
+                      <div className="text-center border-t border-black pt-1 w-36">Guardian&apos;s Signature</div>
+                      <div className="text-center border-t border-black pt-1 w-36">Class Teacher</div>
                       <div className="text-center border-t border-black pt-1 w-44">
                         Director / CEO<br />
                         <span className="text-[10px] font-normal">Prottoy Academy</span>
                       </div>
                     </div>
-
                   </div>
                 </div>
               )) : (

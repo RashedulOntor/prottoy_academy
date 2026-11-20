@@ -30,6 +30,16 @@ const getClassCode = (cls: string) => {
 };
 const GROUPS = ["Science", "Humanities", "Business Studies", "General"];
 
+const ALL_SUBJECTS = [
+  "Bangla 1st Paper", "Bangla 2nd Paper", "English 1st Paper", "English 2nd Paper",
+  "Mathematics", "General Mathematics", "Higher Mathematics", "Science", "General Science",
+  "Physics", "Chemistry", "Biology", "ICT", "Bangladesh & Global Studies",
+  "Religion", "Religion & Moral Education", "Accounting", "Finance & Banking",
+  "Business Entrepreneurship", "History of BD & World Civilization", "Geography & Environment",
+  "Civics & Citizenship", "Economics", "Agriculture Studies", "Home Science",
+  "Life & Livelihood", "Health & Wellbeing", "Art & Culture"
+];
+
 const getSubjectsList = (cls: string, grp: string) => {
   if (!cls) return [];
   const juniorSubjects = [
@@ -67,6 +77,7 @@ function AdminContent() {
   const [archivedStudents, setArchivedStudents] = useState<any[]>([]);
   const [faculties, setFaculties] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
+  const [noticesList, setNoticesList] = useState<any[]>([]);
   const [loadingMsg, setLoadingMsg] = useState("");
 
   useEffect(() => { if (urlTab) setActiveTab(urlTab); }, [urlTab]);
@@ -80,10 +91,10 @@ function AdminContent() {
   const [address, setAddress] = useState("");
   const [studentImage, setStudentImage] = useState("");
   const [rollNumber, setRollNumber] = useState("");
-const currentYear = new Date().getFullYear();
-const idPrefix = className ? `${currentYear}${getClassCode(className)}` : `${currentYear}--`;
-const generatedStudentId =
-  className && rollNumber ? `${currentYear}${getClassCode(className)}${String(rollNumber).padStart(3, "0")}` : "";
+  const currentYear = new Date().getFullYear();
+  const idPrefix = className ? `${currentYear}${getClassCode(className)}` : `${currentYear}--`;
+  const generatedStudentId =
+    className && rollNumber ? `${currentYear}${getClassCode(className)}${String(rollNumber).padStart(3, "0")}` : "";
   const [studentListClassFilter, setStudentListClassFilter] = useState("");
   const [studentListSearch, setStudentListSearch] = useState("");
 
@@ -98,14 +109,29 @@ const generatedStudentId =
   const [isResetting, setIsResetting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // Faculty States
   const [fName, setFName] = useState("");
   const [fDesignation, setFDesignation] = useState("");
   const [fEducation, setFEducation] = useState("");
   const [fSubjects, setFSubjects] = useState("");
   const [fExperience, setFExperience] = useState("");
+  const [fUsername, setFUsername] = useState("");
+  const [fPassword, setFPassword] = useState("faculty123");
   const [fImage, setFImage] = useState("");
   const [manageFaculty, setManageFaculty] = useState<any>(null);
   const [isUpdatingFaculty, setIsUpdatingFaculty] = useState(false);
+
+  // Faculty Assignments States
+  const [facultyAssignments, setFacultyAssignments] = useState<any[]>([]);
+  const [assignClass, setAssignClass] = useState("");
+  const [assignSubject, setAssignSubject] = useState("");
+  const [isAssigning, setIsAssigning] = useState(false);
+
+  // Notice Board States
+  const [noticeTitle, setNoticeTitle] = useState("");
+  const [noticeContent, setNoticeContent] = useState("");
+  const [noticeTargetClass, setNoticeTargetClass] = useState("All");
+  const [noticeSaving, setNoticeSaving] = useState(false);
 
   const [payClassFilter, setPayClassFilter] = useState("");
   const [paySearchQuery, setPaySearchQuery] = useState("");
@@ -130,7 +156,6 @@ const generatedStudentId =
   const [editResultData, setEditResultData] = useState({ cq: "", mcq: "", pr: "", total: "", grade: "" });
   const [isUpdatingResult, setIsUpdatingResult] = useState(false);
 
-  // অপ্টিমাইজড ইমেজ আপলোড ও কম্প্রেশন
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (base64: string) => void) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -165,7 +190,7 @@ const generatedStudentId =
       };
       img.onerror = () => callback(base64String);
     };
-    reader.onerror = () => alert("❌ ছবিটি পড়তে সমস্যা হয়েছে। অন্য ছবি চেষ্টা করুন।");
+    reader.onerror = () => alert("❌ ছবিটি পড়তে সমস্যা হয়েছে। অন্য ছবি চেষ্টা করুন।");
   };
 
   const handleBatchMarkChange = (studentId: number, field: string, value: string) => {
@@ -242,6 +267,18 @@ const generatedStudentId =
     fetch(`/api/results?t=${new Date().getTime()}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => { if (data.success) setResultsList(data.data); });
+  };
+
+  const fetchNotices = () => {
+    fetch(`/api/notices?t=${new Date().getTime()}`, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => { if (data.success) setNoticesList(data.data); });
+  };
+
+  const fetchFacultyAssignments = (facultyId: number) => {
+    fetch(`/api/faculty-assignments?facultyId=${facultyId}&t=${new Date().getTime()}`, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => { if (data.success) setFacultyAssignments(data.data); });
   };
 
   const openManageResultModal = (resItem: any) => {
@@ -349,6 +386,7 @@ const generatedStudentId =
     fetchFaculties();
     fetchPayments();
     fetchResults();
+    fetchNotices();
   }, []);
 
   const handleLogout = () => { window.location.href = "/"; };
@@ -389,56 +427,57 @@ const generatedStudentId =
   };
 
   const handleRegisterStudent = async () => {
-  if (!fullName || !phone || !className || !rollNumber) {
-    return alert("❌ Required: Full Name, Class, Roll Number, and Phone!");
-  }
-  if (Number(rollNumber) < 1 || Number(rollNumber) > 999) {
-    return alert("❌ Roll number must be between 1 and 999!");
-  }
-  if (["Class 9", "Class 10"].includes(className) && !studentGroup) {
-    return alert("❌ Required: Group must be selected for Class 9 & 10!");
-  }
-
-  setLoadingMsg("Registering...");
-  try {
-    const res = await fetch("/api/students", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        studentId: generatedStudentId,
-        fullName,
-        fathersName,
-        mothersName,
-        className,
-        studentGroup,
-        phone,
-        address,
-        profile_image: studentImage,
-      }),
-    });
-    const result = await res.json();
-    if (result.success) {
-      alert("✅ " + result.message);
-      setFullName("");
-      setFathersName("");
-      setMothersName("");
-      setClassName("");
-      setStudentGroup("");
-      setRollNumber("");
-      setPhone("");
-      setAddress("");
-      setStudentImage("");
-      fetchStudents();
-      router.push("/admin?tab=studentsList");
-    } else {
-      alert("❌ Error: " + result.message);
+    if (!fullName || !phone || !className || !rollNumber) {
+      return alert("❌ Required: Full Name, Class, Roll Number, and Phone!");
     }
-  } catch (err) {
-    alert("❌ Server connection error while registering student!");
-  } finally {
-    setLoadingMsg("");
-  }
-};
+    if (Number(rollNumber) < 1 || Number(rollNumber) > 999) {
+      return alert("❌ Roll number must be between 1 and 999!");
+    }
+    if (["Class 9", "Class 10"].includes(className) && !studentGroup) {
+      return alert("❌ Required: Group must be selected for Class 9 & 10!");
+    }
+
+    setLoadingMsg("Registering...");
+    try {
+      const res = await fetch("/api/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId: generatedStudentId,
+          fullName,
+          fathersName,
+          mothersName,
+          className,
+          studentGroup,
+          phone,
+          address,
+          profile_image: studentImage,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        alert("✅ " + result.message);
+        setFullName("");
+        setFathersName("");
+        setMothersName("");
+        setClassName("");
+        setStudentGroup("");
+        setRollNumber("");
+        setPhone("");
+        setAddress("");
+        setStudentImage("");
+        fetchStudents();
+        router.push("/admin?tab=studentsList");
+      } else {
+        alert("❌ Error: " + result.message);
+      }
+    } catch (err) {
+      alert("❌ Server connection error while registering student!");
+    } finally {
+      setLoadingMsg("");
+    }
+  };
+
   const handleUpdateStudentImageAPI = async () => {
     if (!updateStudentImage || !manageStudent) return alert("⚠️ Please select an image!");
     setIsUpdatingImage(true);
@@ -546,7 +585,9 @@ const generatedStudentId =
   };
 
   const handleRegisterFaculty = async () => {
-    if (!fName || !fDesignation) return alert("❌ Required: Name and Designation!");
+    if (!fName || !fDesignation || !fUsername) {
+      return alert("❌ Required: Name, Designation, and Login Username!");
+    }
     setLoadingMsg("Adding Teacher...");
     try {
       const res = await fetch("/api/faculty", {
@@ -558,17 +599,21 @@ const generatedStudentId =
           education: fEducation,
           subjects: fSubjects,
           experience: fExperience,
+          username: fUsername,
+          password: fPassword || "faculty123",
           image: fImage
         }),
       });
       const result = await res.json();
       if (result.success) {
-        alert("✅ Teacher added successfully!");
+        alert("✅ " + result.message);
         setFName("");
         setFDesignation("");
         setFEducation("");
         setFSubjects("");
         setFExperience("");
+        setFUsername("");
+        setFPassword("faculty123");
         setFImage("");
         fetchFaculties();
       } else alert("❌ Error: " + result.message);
@@ -577,6 +622,41 @@ const generatedStudentId =
     } finally {
       setLoadingMsg("");
     }
+  };
+
+  const handleAssignClassSubject = async () => {
+    if (!manageFaculty || !assignClass || !assignSubject) {
+      return alert("⚠️ Select Class and Subject!");
+    }
+    setIsAssigning(true);
+    try {
+      const res = await fetch("/api/faculty-assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          facultyId: manageFaculty.id,
+          className: assignClass,
+          subjectName: assignSubject
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("✅ Access assigned!");
+        setAssignClass("");
+        setAssignSubject("");
+        fetchFacultyAssignments(manageFaculty.id);
+      } else alert("❌ " + data.message);
+    } catch (err) {
+      alert("❌ Failed to assign.");
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  const handleRemoveAssignment = async (assignId: number) => {
+    if (!window.confirm("Remove this class-subject access?")) return;
+    await fetch(`/api/faculty-assignments?id=${assignId}`, { method: "DELETE" });
+    if (manageFaculty) fetchFacultyAssignments(manageFaculty.id);
   };
 
   const handleUpdateFacultyDetails = async () => {
@@ -626,6 +706,42 @@ const generatedStudentId =
         fetchFaculties();
       }
     } catch (err) {}
+  };
+
+  const handlePublishNotice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!noticeTitle || !noticeContent) return alert("⚠️ Title and Content are required!");
+    setNoticeSaving(true);
+    try {
+      const res = await fetch("/api/notices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: noticeTitle,
+          content: noticeContent,
+          targetClass: noticeTargetClass,
+          postedBy: "Admin"
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("✅ Notice published!");
+        setNoticeTitle("");
+        setNoticeContent("");
+        setNoticeTargetClass("All");
+        fetchNotices();
+      } else alert("❌ " + data.message);
+    } catch (err) {
+      alert("❌ Error publishing notice.");
+    } finally {
+      setNoticeSaving(false);
+    }
+  };
+
+  const handleDeleteNotice = async (id: number) => {
+    if (!window.confirm("Delete this notice?")) return;
+    await fetch(`/api/notices?id=${id}`, { method: "DELETE" });
+    fetchNotices();
   };
 
   const handleRecordPayment = async () => {
@@ -726,10 +842,10 @@ const generatedStudentId =
             <div className="relative z-10">
               <p className="text-blue-400 font-bold tracking-widest mb-2 text-xs uppercase">Overview</p>
               <h1 className="text-3xl md:text-4xl font-black mb-3 tracking-tight text-white">Welcome, Admin!</h1>
-              <p className="text-slate-400 text-sm md:text-base max-w-xl font-medium">Manage students, faculties, payments, and exam results securely from this portal.</p>
+              <p className="text-slate-400 text-sm md:text-base max-w-xl font-medium">Manage students, faculties, notices, payments, and exam results securely from this portal.</p>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
             <div onClick={() => router.push("/admin?tab=studentsList")} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all">
               <h3 className="text-slate-500 font-bold uppercase tracking-wider text-xs mb-2">Total Students</h3>
               <p className="text-3xl font-black text-slate-800">{students.length}</p>
@@ -740,12 +856,72 @@ const generatedStudentId =
             </div>
             <div onClick={() => router.push("/admin?tab=examResults")} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all">
               <h3 className="text-slate-500 font-bold uppercase tracking-wider text-xs mb-2">Exam Results</h3>
-              <p className="text-lg font-black text-indigo-600 mt-1">Publish & View</p>
+              <p className="text-lg font-black text-indigo-600 mt-1">Publish &amp; View</p>
+            </div>
+            <div onClick={() => router.push("/admin?tab=notices")} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all">
+              <h3 className="text-slate-500 font-bold uppercase tracking-wider text-xs mb-2">Notice Board</h3>
+              <p className="text-lg font-black text-rose-600 mt-1">{noticesList.length} Notices</p>
             </div>
             <div onClick={() => router.push("/admin?tab=payments")} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all">
               <h3 className="text-slate-500 font-bold uppercase tracking-wider text-xs mb-2">Payments</h3>
               <p className="text-lg font-black text-amber-600 mt-1">{payments.length} Records</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* NOTICE BOARD */}
+      {activeTab === "notices" && (
+        <div className="animate-fade-in max-w-4xl mx-auto space-y-8">
+          <h1 className="text-2xl font-black text-slate-800">📢 Notice Board Management</h1>
+
+          <form onSubmit={handlePublishNotice} className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 space-y-4">
+            <h3 className="text-lg font-black text-slate-700 border-b border-slate-100 pb-3">+ Publish New Notice</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Notice Title *</label>
+                <input type="text" value={noticeTitle} onChange={(e) => setNoticeTitle(e.target.value)} placeholder="e.g. Exam Routine Published" className={inputClass} required />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Target Audience</label>
+                <select value={noticeTargetClass} onChange={(e) => setNoticeTargetClass(e.target.value)} className={inputClass}>
+                  <option value="All">All Students (General)</option>
+                  {CLASSES.map((c) => <option key={c} value={c}>{c} Only</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Notice Content *</label>
+              <textarea rows={4} value={noticeContent} onChange={(e) => setNoticeContent(e.target.value)} placeholder="Write notice details..." className={inputClass} required />
+            </div>
+            <button type="submit" disabled={noticeSaving} className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-sm shadow-sm">
+              {noticeSaving ? "Publishing..." : "📢 Publish Notice"}
+            </button>
+          </form>
+
+          <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200">
+            <h3 className="text-lg font-black text-slate-700 mb-4">Published Notices ({noticesList.length})</h3>
+            {noticesList.length > 0 ? (
+              <div className="space-y-3">
+                {noticesList.map((n) => (
+                  <div key={n.id} className="p-4 rounded-2xl border border-slate-200 flex justify-between items-start gap-4">
+                    <div>
+                      <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 mr-2">
+                        {n.target_class === "All" ? "All Students" : n.target_class}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-400">By {n.posted_by} • {n.created_at?.substring(0, 10)}</span>
+                      <h4 className="font-black text-slate-900 mt-1">{n.title}</h4>
+                      <p className="text-sm text-slate-600 mt-1 whitespace-pre-line">{n.content}</p>
+                    </div>
+                    <button onClick={() => handleDeleteNotice(n.id)} className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white font-bold text-xs rounded-lg shrink-0 transition-colors">
+                      🗑️ Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-400 font-bold text-sm text-center py-6">No notices published yet.</p>
+            )}
           </div>
         </div>
       )}
@@ -773,7 +949,7 @@ const generatedStudentId =
                       <input type="text" value={manageStudent.full_name || ""} onChange={(e) => setManageStudent({ ...manageStudent, full_name: e.target.value })} className={inputClass} />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone Number (Login ID)</label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone Number</label>
                       <input type="text" value={manageStudent.phone_number || manageStudent.phone || ""} onChange={(e) => setManageStudent({ ...manageStudent, phone_number: e.target.value })} className={inputClass} />
                     </div>
                     <div>
@@ -979,7 +1155,7 @@ const generatedStudentId =
         </div>
       )}
 
-    {/* ADD STUDENT */}
+      {/* ADD STUDENT */}
       {activeTab === "addNewStudent" && (
         <div className="animate-fade-in">
           <h1 className="text-2xl font-black text-slate-800 mb-6">Register New Student</h1>
@@ -1292,9 +1468,12 @@ const generatedStudentId =
       {activeTab === "facultyList" && (
         <div className="animate-fade-in max-w-6xl mx-auto">
           {manageFaculty ? (
-            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 relative">
-              <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6">
-                <div><h2 className="text-xl font-black text-slate-800">⚙️ Manage Faculty</h2></div>
+            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 relative space-y-8">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-6">
+                <div>
+                  <h2 className="text-xl font-black text-slate-800">⚙️ Manage Faculty</h2>
+                  {manageFaculty.username && <p className="text-xs font-bold text-emerald-600 mt-1">Login Username: {manageFaculty.username}</p>}
+                </div>
                 <button onClick={() => setManageFaculty(null)} className="px-5 py-2 bg-slate-100 hover:bg-slate-200 font-bold text-sm rounded-lg">Close</button>
               </div>
 
@@ -1322,12 +1501,53 @@ const generatedStudentId =
                   </div>
                 </div>
               </div>
+
+              {/* CLASS & SUBJECT PERMISSION ASSIGNMENT */}
+              <div className="bg-blue-50/60 rounded-2xl p-6 border border-blue-200">
+                <h3 className="text-base font-black text-blue-900 mb-4">🔐 Assign Class &amp; Subject Access</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+                  <select value={assignClass} onChange={(e) => setAssignClass(e.target.value)} className={inputClass}>
+                    <option value="">Select Class</option>
+                    {CLASSES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <select value={assignSubject} onChange={(e) => setAssignSubject(e.target.value)} className={inputClass}>
+                    <option value="">Select Subject</option>
+                    {ALL_SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <button
+                    onClick={handleAssignClassSubject}
+                    disabled={isAssigning}
+                    className="py-2.5 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-sm"
+                  >
+                    {isAssigning ? "Assigning..." : "+ Assign Access"}
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-2.5">
+                  {facultyAssignments.length > 0 ? (
+                    facultyAssignments.map((a) => (
+                      <div key={a.id} className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-blue-200 shadow-sm text-xs font-bold text-slate-800">
+                        <span>{a.class_name} • {a.subject_name}</span>
+                        <button
+                          onClick={() => handleRemoveAssignment(a.id)}
+                          className="text-red-500 hover:text-red-700 font-black ml-1"
+                          title="Remove Access"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs font-bold text-slate-500">No class-subject assigned yet.</p>
+                  )}
+                </div>
+              </div>
             </div>
           ) : (
             <>
               <h1 className="text-2xl font-black text-slate-800 mb-6">Faculty Management</h1>
               <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 mb-8 max-w-4xl">
-                <h3 className="text-lg font-black text-slate-700 mb-6 border-b border-slate-100 pb-4">+ Add New Teacher</h3>
+                <h3 className="text-lg font-black text-slate-700 mb-6 border-b border-slate-100 pb-4">+ Register New Teacher (With Login)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                   <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 p-5 rounded-2xl bg-slate-50">
                     <p className="text-xs font-bold text-slate-500 uppercase mb-3">Profile Image</p>
@@ -1344,6 +1564,16 @@ const generatedStudentId =
                       <input type="text" value={fSubjects} onChange={(e) => setFSubjects(e.target.value)} placeholder="Subjects" className={inputClass} />
                       <input type="text" value={fExperience} onChange={(e) => setFExperience(e.target.value)} placeholder="Experience" className={inputClass} />
                     </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3.5 bg-emerald-50/70 rounded-xl border border-emerald-200">
+                      <div>
+                        <label className="block text-[11px] font-black text-emerald-800 uppercase mb-1">Login Username *</label>
+                        <input type="text" value={fUsername} onChange={(e) => setFUsername(e.target.value)} placeholder="e.g. shohel_sir" className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-black text-emerald-800 uppercase mb-1">Initial Password</label>
+                        <input type="text" value={fPassword} onChange={(e) => setFPassword(e.target.value)} placeholder="faculty123" className={inputClass} />
+                      </div>
+                    </div>
                     <button onClick={handleRegisterFaculty} disabled={!!loadingMsg} className="w-full py-3 mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-sm">{loadingMsg ? loadingMsg : "Register Teacher"}</button>
                   </div>
                 </div>
@@ -1357,14 +1587,18 @@ const generatedStudentId =
                     </div>
                     <div className="p-5 flex-1 flex flex-col bg-white">
                       <h3 className="text-lg font-black text-slate-800 mb-1">{teacher.name}</h3>
-                      <p className="text-blue-600 font-bold text-xs uppercase tracking-wider mb-4">{teacher.designation}</p>
+                      <p className="text-blue-600 font-bold text-xs uppercase tracking-wider mb-1">{teacher.designation}</p>
+                      {teacher.username && <p className="text-[11px] font-bold text-emerald-600 mb-3">ID: {teacher.username}</p>}
                       <div className="text-xs text-slate-500 space-y-2 mb-6 font-medium">
                         <p>🎓 {teacher.education}</p>
                         <p>⏳ {teacher.experience}</p>
                         <p>📚 <span className="text-slate-700 font-bold">{teacher.subjects}</span></p>
                       </div>
-                      <button onClick={() => setManageFaculty(teacher)} className="mt-auto w-full py-2 bg-slate-100 text-slate-700 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors">
-                        ⚙️ Manage
+                      <button
+                        onClick={() => { setManageFaculty(teacher); fetchFacultyAssignments(teacher.id); }}
+                        className="mt-auto w-full py-2 bg-slate-100 text-slate-700 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors"
+                      >
+                        ⚙️ Manage &amp; Assign
                       </button>
                     </div>
                   </div>
