@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '../../../lib/db';
+import pool from '../../../lib/db'; // 🔴 UPDATE
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
 // ১. পেমেন্ট ডাটা দেখার জন্য (Admin এবং Student দুইজনের জন্যই)
 export async function GET(request: Request) {
-  let db;
   try {
     const { searchParams } = new URL(request.url);
-    const studentId = searchParams.get('studentId'); // স্টুডেন্ট আইডি দিয়ে ফিল্টার করার জন্য
-
-    db = await connectToDatabase();
+    const studentId = searchParams.get('studentId'); // স্টুডেন্ট আইডি দিয়ে ফিল্টার করার জন্য
     
     let query = "";
     let params: any[] = [];
@@ -29,24 +26,20 @@ export async function GET(request: Request) {
         ORDER BY p.payment_date DESC`;
     }
 
-    const [rows] = await db.query(query, params);
+    const [rows] = await pool.query(query, params);
     return NextResponse.json({ success: true, data: rows });
   } catch (error) {
     return NextResponse.json({ success: false, message: 'Error fetching payments' }, { status: 500 });
-  } finally {
-    if (db) await db.end();
   }
 }
 
 // ২. অ্যাডমিন যখন নতুন পেমেন্ট অ্যাড করবেন
 export async function POST(request: Request) {
-  let db;
   try {
     const body = await request.json();
     const { student_id, amount, payment_purpose, payment_status } = body;
 
-    db = await connectToDatabase();
-    await db.query(
+    await pool.query(
       'INSERT INTO payments (student_id, amount, payment_purpose, payment_status) VALUES (?, ?, ?, ?)',
       [student_id, amount, payment_purpose, payment_status]
     );
@@ -54,7 +47,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, message: 'Payment updated successfully!' });
   } catch (error) {
     return NextResponse.json({ success: false, message: 'Failed to update payment' }, { status: 500 });
-  } finally {
-    if (db) await db.end();
   }
 }

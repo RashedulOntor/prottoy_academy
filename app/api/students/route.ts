@@ -1,81 +1,80 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '../../../lib/db';
+import pool from '../../../lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(request: Request) {
-  let db;
   try {
     const { searchParams } = new URL(request.url);
-    const fetchArchived = searchParams.get('archived'); 
+    const fetchArchived = searchParams.get('archived');
 
-    db = await connectToDatabase();
-    
-    try { await db.query("ALTER TABLE students ADD COLUMN student_group VARCHAR(100) DEFAULT NULL"); } catch (e) {}
-    
     let query = 'SELECT * FROM students WHERE is_archived = FALSE OR is_archived IS NULL ORDER BY student_id ASC';
-    
+
     if (fetchArchived === 'true') {
       query = 'SELECT * FROM students WHERE is_archived = TRUE ORDER BY student_id ASC';
     }
 
-    const [students] = await db.query(query);
-    
-    return NextResponse.json({ success: true, data: students }, { 
+    const [students] = await pool.query(query);
+
+    return NextResponse.json({ success: true, data: students }, {
       status: 200,
       headers: { 'Cache-Control': 'no-store, max-age=0' }
     });
   } catch (error) {
+    console.error('GET STUDENTS ERROR:', error);
     return NextResponse.json({ success: false, message: 'Failed to fetch students' }, { status: 500 });
-  } finally {
-    if (db) await db.end();
   }
 }
 
 export async function POST(request: Request) {
-  let db;
+  let createdStudentId: number | null = null;
   try {
     const body = await request.json();
-    const { fullName, fathersName, mothersName, className, studentGroup, phone, address, profile_image } = body;
+    const { studentId, fullName, fathersName, mothersName, className, studentGroup, phone, address, profile_image } = body;
 
-    const generatedUsername = phone;
+    if (!studentId) {
+      return NextResponse.json({ success: false, message: 'Student ID (Roll Number) is required!' }, { status: 400 });
+    }
+
+    const numericId = Number(studentId);
+    const generatedUsername = String(studentId);
     const defaultPassword = "password123";
 
-    if (!generatedUsername) {
-      return NextResponse.json({ success: false, message: 'Phone number is required for login ID!' }, { status: 400 });
-    }
-
-    db = await connectToDatabase();
-
-    try { await db.query("ALTER TABLE students ADD COLUMN student_group VARCHAR(100) DEFAULT NULL"); } catch (err) {}
-
-    const [userResult]: any = await db.query(
-      'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
-      [generatedUsername, defaultPassword, 'student']
+    // users টেবিলে কাস্টম 9-ডিজিট ID এবং username হিসেবে সেভ করা
+    await pool.query(
+      'INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)',
+      [numericId, generatedUsername, defaultPassword, 'student']
     );
 
-    const newUserId = userResult.insertId;
+    createdStudentId = numericId;
 
-    await db.query(
+    // students টেবিলে একই 9-ডিজিট student_id দিয়ে সেভ করা
+    await pool.query(
       'INSERT INTO students (student_id, full_name, fathers_name, mothers_name, class_name, student_group, phone_number, address, profile_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [newUserId, fullName, fathersName, mothersName, className, studentGroup || null, phone, address, profile_image || null]
+      [numericId, fullName, fathersName, mothersName, className, studentGroup || null, phone, address, profile_image || null]
     );
 
-    return NextResponse.json({ success: true, message: 'Student registered! Login ID is their phone number.' }, { status: 201 });
-    
+    return NextResponse.json({
+      success: true,
+      message: `Student registered! Login ID: ${generatedUsername} | Default Password: password123`
+    }, { status: 201 });
+
   } catch (error: any) {
-    if (error.code === 'ER_DUP_ENTRY') {
-      return NextResponse.json({ success: false, message: 'A student with this phone number already exists!' }, { status: 400 });
+    if (createdStudentId) {
+      try { await pool.query('DELETE FROM users WHERE id = ?', [createdStudentId]); } catch (e) {}
     }
-    return NextResponse.json({ success: false, message: 'Failed to register student.' }, { status: 500 });
-  } finally {
-    if (db) await db.end();
+
+    console.error('POST STUDENT ERROR:', error);
+
+    if (error.code === 'ER_DUP_ENTRY') {
+      return NextResponse.json({ success: false, message: 'এই ক্লাস ও রোলের (Student ID) স্টুডেন্ট ইতিমধ্যেই আছে!' }, { status: 400 });
+    }
+    return NextResponse.json({ success: false, message: `Failed to register: ${error.message}` }, { status: 500 });
   }
 }
 
 export async function DELETE(request: Request) {
-  let db;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -84,45 +83,34 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, message: 'Student ID is required' }, { status: 400 });
     }
 
-    db = await connectToDatabase();
+    await pool.query('UPDATE students SET is_archived = TRUE WHERE student_id = ?', [id]);
 
-    await db.query('UPDATE students SET is_archived = TRUE WHERE student_id = ?', [id]);
-    
     try {
-        await db.query('UPDATE users SET is_archived = TRUE WHERE id = ?', [id]);
+      await pool.query('UPDATE users SET is_archived = TRUE WHERE id = ?', [id]);
     } catch (e) {
-        try {
-            await db.query('UPDATE users SET is_archived = TRUE WHERE user_id = ?', [id]);
-        } catch (err) {
-            console.log("Skipped user login soft delete as table might differ.");
-        }
+      try { await pool.query('UPDATE users SET is_archived = TRUE WHERE user_id = ?', [id]); } catch (err) {}
     }
 
     return NextResponse.json({ success: true, message: 'Student moved to archive successfully!' }, { status: 200 });
-    
+
   } catch (error) {
     return NextResponse.json({ success: false, message: 'Failed to remove student' }, { status: 500 });
-  } finally {
-    if (db) await db.end();
   }
 }
 
 export async function PUT(request: Request) {
-  let db;
   try {
     const body = await request.json();
-    
+
     if (body.type === 'recover') {
       const { id } = body;
       if (!id) return NextResponse.json({ success: false, message: 'Missing ID' }, { status: 400 });
 
-      db = await connectToDatabase();
-      
-      await db.query('UPDATE students SET is_archived = FALSE WHERE student_id = ?', [id]);
+      await pool.query('UPDATE students SET is_archived = FALSE WHERE student_id = ?', [id]);
       try {
-        await db.query('UPDATE users SET is_archived = FALSE WHERE id = ?', [id]);
+        await pool.query('UPDATE users SET is_archived = FALSE WHERE id = ?', [id]);
       } catch (err) {
-        try { await db.query('UPDATE users SET is_archived = FALSE WHERE user_id = ?', [id]); } catch (e) {}
+        try { await pool.query('UPDATE users SET is_archived = FALSE WHERE user_id = ?', [id]); } catch (e) {}
       }
 
       return NextResponse.json({ success: true, message: 'Student recovered successfully!' }, { status: 200 });
@@ -132,16 +120,10 @@ export async function PUT(request: Request) {
       const { id, newPassword } = body;
       if (!id || !newPassword) return NextResponse.json({ success: false, message: 'Missing data for password update' }, { status: 400 });
 
-      db = await connectToDatabase();
-      
       try {
-        await db.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, id]);
+        await pool.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, id]);
       } catch (err) {
-        try {
-          await db.query('UPDATE users SET password = ? WHERE user_id = ?', [newPassword, id]);
-        } catch (fallbackErr) {
-          throw fallbackErr;
-        }
+        await pool.query('UPDATE users SET password = ? WHERE user_id = ?', [newPassword, id]);
       }
       return NextResponse.json({ success: true, message: 'Password updated successfully!' }, { status: 200 });
     }
@@ -150,42 +132,36 @@ export async function PUT(request: Request) {
       const { id, profile_image } = body;
       if (!id || !profile_image) return NextResponse.json({ success: false, message: 'Missing data for image update' }, { status: 400 });
 
-      db = await connectToDatabase();
-      await db.query('UPDATE students SET profile_image = ? WHERE student_id = ?', [profile_image, id]);
+      await pool.query('UPDATE students SET profile_image = ? WHERE student_id = ?', [profile_image, id]);
       return NextResponse.json({ success: true, message: 'Profile image updated successfully!' }, { status: 200 });
     }
 
-    // 🔴 UPDATE: Handle Full A-Z Profile Update (Including Phone Number & Users Login ID)
-    const { id, fullName, fathersName, mothersName, className, studentGroup, address, phone } = body;
+    // প্রোফাইল আপডেট (ফোন নম্বর আপডেট হলেও লগইন ID অপরিবর্তিত থাকবে)
+    const { id, fullName, fathersName, mothersName, className, studentGroup, address, phone, profile_image } = body;
 
     if (!id) return NextResponse.json({ success: false, message: 'Student ID is required for update' }, { status: 400 });
 
-    db = await connectToDatabase();
-
-    let updateQuery = 'UPDATE students SET full_name = ?, fathers_name = ?, mothers_name = ?, class_name = ?, phone_number = ?, address = ? WHERE student_id = ?';
-    let updateParams = [fullName, fathersName, mothersName, className, phone, address, id];
-
-    if (studentGroup !== undefined) {
-       updateQuery = 'UPDATE students SET full_name = ?, fathers_name = ?, mothers_name = ?, class_name = ?, student_group = ?, phone_number = ?, address = ? WHERE student_id = ?';
-       updateParams = [fullName, fathersName, mothersName, className, studentGroup, phone, address, id];
-    }
-
-    await db.query(updateQuery, updateParams);
-
-    // Update login username to match new phone number
-    if (phone) {
-      try { await db.query('UPDATE users SET username = ? WHERE id = ?', [phone, id]); } 
-      catch (err) {
-        try { await db.query('UPDATE users SET username = ? WHERE user_id = ?', [phone, id]); } catch (e) {}
-      }
+    if (profile_image) {
+      await pool.query(
+        'UPDATE students SET full_name = ?, fathers_name = ?, mothers_name = ?, class_name = ?, phone_number = ?, address = ?, profile_image = ? WHERE student_id = ?',
+        [fullName, fathersName, mothersName, className, phone, address, profile_image, id]
+      );
+    } else if (studentGroup !== undefined) {
+      await pool.query(
+        'UPDATE students SET full_name = ?, fathers_name = ?, mothers_name = ?, class_name = ?, student_group = ?, phone_number = ?, address = ? WHERE student_id = ?',
+        [fullName, fathersName, mothersName, className, studentGroup, phone, address, id]
+      );
+    } else {
+      await pool.query(
+        'UPDATE students SET full_name = ?, fathers_name = ?, mothers_name = ?, class_name = ?, phone_number = ?, address = ? WHERE student_id = ?',
+        [fullName, fathersName, mothersName, className, phone, address, id]
+      );
     }
 
     return NextResponse.json({ success: true, message: 'Profile updated successfully!' }, { status: 200 });
-    
+
   } catch (error) {
     console.error('Update Error:', error);
     return NextResponse.json({ success: false, message: 'Failed to update' }, { status: 500 });
-  } finally {
-    if (db) await db.end();
   }
 }

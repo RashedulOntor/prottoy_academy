@@ -4,205 +4,117 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
-// Professional Icons
-const UserIcon = () => (
-  <svg style={{ width: '18px', height: '18px', color: '#94a3b8' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-  </svg>
-);
-
-const LockIcon = () => (
-  <svg style={{ width: '18px', height: '18px', color: '#94a3b8' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-  </svg>
-);
-
 export default function LoginPage() {
   const router = useRouter();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  // Student States
-  const [studentPhone, setStudentPhone] = useState("");
-  const [studentPassword, setStudentPassword] = useState("");
-  const [showStudentPass, setShowStudentPass] = useState(false);
-  const [studentLoading, setStudentLoading] = useState(false);
-
-  // Admin States
-  const [adminUsername, setAdminUsername] = useState(""); 
-  const [adminPassword, setAdminPassword] = useState("");
-  const [showAdminPass, setShowAdminPass] = useState(false);
-  const [adminLoading, setAdminLoading] = useState(false);
-
-  // Student Login Logic 
-  const handleStudentLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setStudentLoading(true);
-    
-    // Emergency Fallback for Student Presentation: If DB fails, allow test student
-    if (studentPhone === "01700000000" && studentPassword === "password123") {
-       router.push("/student/test-id-123");
-       return;
-    }
+    setErrorMsg("");
+    setLoading(true);
 
     try {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: studentPhone, password: studentPassword }),
+        body: JSON.stringify({ username, password }),
       });
-      const data = await res.json();
-      if (res.ok && data.success && data.user.role === "student") {
-        router.push(`/student/${data.user.user_id}`);
-      } else { 
-        alert("❌ Wrong User ID or Password! Please try again."); 
-      }
-    } catch (err) { 
-      alert("⚠️ Network error! But don't worry, Admin portal works via VIP Pass.");
-    } finally { setStudentLoading(false); }
-  };
 
-  // Admin Login Logic (100% Guaranteed Bypass)
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // ====== VIP PASS: Bypassing the broken database ======
-    if (adminUsername === "admin_prottoy" && adminPassword === "prottoy@admin") {
-      setAdminLoading(true);
-      setTimeout(() => {
-        router.push("/admin");
-      }, 500); // Slight delay for realistic loading effect
-      return;
+      const data = await res.json();
+
+      if (data.success) {
+        // 🔴 Role-based Dynamic Routing
+        if (data.role === "admin") {
+          router.push("/admin");
+        } else if (data.role === "student") {
+          router.push(`/student/${data.id}`);
+        } else if (data.role === "faculty") {
+          router.push(`/faculty/${data.id}`);
+        } else {
+          setErrorMsg("অজানা ইউজার রোল!");
+        }
+      } else {
+        setErrorMsg(data.message);
+      }
+    } catch (error) {
+      setErrorMsg("লগইন ফেইল হয়েছে। নেটওয়ার্ক চেক করুন।");
+    } finally {
+      setLoading(false);
     }
-
-    // Normal API Call if credentials don't match VIP Pass
-    setAdminLoading(true);
-    try {
-      const res = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: adminUsername, password: adminPassword }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success && data.user.role === "admin") {
-        router.push("/admin");
-      } else { 
-        alert("❌ Invalid Admin Credentials! Check ID and Security Key."); 
-      }
-    } catch (err) { 
-      alert("⚠️ API is down, but you can still use the correct Admin ID and Key to log in!");
-    } finally { setAdminLoading(false); }
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)', fontFamily: 'sans-serif', padding: '30px 20px' }}>
-      
-      {/* Header Section */}
-      <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <p style={{ color: '#0284c7', fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', letterSpacing: '1px' }}>
-          ‘মেধা ও মননে অনন্য প্রত্যয়’
-        </p>
+    <div className="min-h-screen bg-[#f4f7fc] flex items-center justify-center p-4 font-sans text-slate-800">
+      <div className="max-w-4xl w-full bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col md:flex-row">
         
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
-          <Image src="/prottoy academy logo.png" alt="Logo" width={60} height={60} style={{ borderRadius: '12px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }} />
-          <h1 style={{ fontSize: '36px', fontWeight: '900', color: '#1e293b', margin: 0 }}>প্রত্যয় একাডেমি</h1>
+        {/* Left Side - Branding */}
+        <div className="w-full md:w-5/12 bg-slate-900 text-white p-10 flex flex-col justify-center items-center text-center relative overflow-hidden">
+          <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+          <div className="relative z-10 flex flex-col items-center">
+            <div className="w-24 h-24 bg-white rounded-full p-2 mb-6 shadow-lg">
+              <Image src="/prottoy academy logo.png" alt="Prottoy Academy" width={100} height={100} className="rounded-full object-contain" />
+            </div>
+            <h1 className="text-3xl font-black mb-2 tracking-wide">PROTTOY</h1>
+            <h2 className="text-xl font-bold text-emerald-400 tracking-widest uppercase mb-4">Academy</h2>
+            <p className="text-slate-400 text-sm font-medium px-4">
+              Integrated Education Management System
+            </p>
+          </div>
         </div>
-      </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '30px', width: '100%', maxWidth: '850px' }}>
-        
-        {/* STUDENT PORTAL */}
-        <div style={{ flex: '1 1 350px', backgroundColor: 'white', padding: '35px', borderRadius: '20px', boxShadow: '0 15px 25px rgba(0,0,0,0.05)', borderTop: '8px solid #2563eb', boxSizing: 'border-box' }}>
-          <div style={{ textAlign: 'center', marginBottom: '25px' }}>
-            <span style={{ fontSize: '24px' }}>👨‍🎓</span>
-            <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#1e3a8a', margin: '10px 0 0 0' }}>Student Portal</h2>
+        {/* Right Side - Login Form */}
+        <div className="w-full md:w-7/12 p-8 md:p-12 lg:p-16 flex flex-col justify-center">
+          <div className="mb-8">
+            <h2 className="text-2xl md:text-3xl font-black text-slate-800 mb-2">Welcome Back!</h2>
+            <p className="text-slate-500 font-medium text-sm">Please sign in to access your portal</p>
           </div>
 
-          <form onSubmit={handleStudentLogin} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }} autoComplete="off">
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', color: '#475569', fontWeight: '600', fontSize: '13px' }}>Phone Number (Login ID)</label>
-              <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}><UserIcon /></span>
-                <input 
-                  type="text" 
-                  value={studentPhone} 
-                  onChange={(e) => setStudentPhone(e.target.value)} 
-                  required 
-                  autoComplete="one-time-code"
-                  placeholder="Use your phone number" 
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '12px 12px 12px 40px', borderRadius: '10px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px', color: '#111827', backgroundColor: '#ffffff' }} 
-                />
-              </div>
+          {errorMsg && (
+            <div className="bg-red-50 text-red-600 border border-red-100 p-4 rounded-xl text-sm font-bold mb-6 flex items-center gap-2">
+              ⚠️ {errorMsg}
             </div>
+          )}
 
+          <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              <label style={{ display: 'block', marginBottom: '6px', color: '#475569', fontWeight: '600', fontSize: '13px' }}>Password</label>
-              <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}><LockIcon /></span>
-                <input 
-                  type={showStudentPass ? "text" : "password"} 
-                  value={studentPassword} 
-                  onChange={(e) => setStudentPassword(e.target.value)} 
-                  required 
-                  autoComplete="new-password"
-                  placeholder="password123" 
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '12px 45px 12px 40px', borderRadius: '10px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px', color: '#111827', backgroundColor: '#ffffff' }} 
-                />
-                <button type="button" onClick={() => setShowStudentPass(!showStudentPass)} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer' }}>{showStudentPass ? "🙈" : "👁️"}</button>
-              </div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Login ID / Username</label>
+              <input 
+                type="text" 
+                value={username} 
+                onChange={(e) => setUsername(e.target.value)} 
+                required 
+                placeholder="Enter your ID or phone number"
+                className="w-full px-5 py-3.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all text-slate-800 font-medium" 
+              />
             </div>
-
-            <button type="submit" disabled={studentLoading} style={{ width: '100%', padding: '14px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', marginTop: '8px' }}>
-              {studentLoading ? "Logging in..." : "Login"}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Password</label>
+              <input 
+                type="password" 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
+                required 
+                placeholder="••••••••"
+                className="w-full px-5 py-3.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all text-slate-800 font-medium" 
+              />
+            </div>
+            
+            <button 
+              type="submit" 
+              disabled={loading} 
+              className="w-full py-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-black rounded-xl shadow-md text-base transition-all disabled:opacity-50 mt-2"
+            >
+              {loading ? "Signing in..." : "Secure Login"}
             </button>
           </form>
-        </div>
 
-        {/* ADMIN PORTAL */}
-        <div style={{ flex: '1 1 350px', backgroundColor: 'white', padding: '35px', borderRadius: '20px', boxShadow: '0 15px 25px rgba(0,0,0,0.05)', borderTop: '8px solid #be123c', boxSizing: 'border-box' }}>
-          <div style={{ textAlign: 'center', marginBottom: '25px' }}>
-            <span style={{ fontSize: '24px' }}>🛡️</span>
-            <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#881337', margin: '10px 0 0 0' }}>Admin Portal</h2>
+          <div className="mt-8 text-center border-t border-slate-100 pt-6">
+            <p className="text-xs font-bold text-slate-400">© 2026 Prottoy Academy. All rights reserved.</p>
           </div>
-
-          <form onSubmit={handleAdminLogin} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }} autoComplete="off">
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', color: '#475569', fontWeight: '600', fontSize: '13px' }}>Admin ID</label>
-              <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}><UserIcon /></span>
-                <input 
-                  type="text" 
-                  value={adminUsername} 
-                  onChange={(e) => setAdminUsername(e.target.value)}
-                  required 
-                  autoComplete="off"
-                  placeholder="admin_prottoy" 
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '12px 12px 12px 40px', borderRadius: '10px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px', color: '#111827', backgroundColor: '#ffffff' }} 
-                />
-              </div>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', color: '#475569', fontWeight: '600', fontSize: '13px' }}>Security Key</label>
-              <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}><LockIcon /></span>
-                <input 
-                  type={showAdminPass ? "text" : "password"} 
-                  value={adminPassword} 
-                  onChange={(e) => setAdminPassword(e.target.value)} 
-                  required 
-                  autoComplete="new-password"
-                  placeholder="Enter password" 
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '12px 45px 12px 40px', borderRadius: '10px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px', color: '#111827', backgroundColor: '#ffffff' }} 
-                />
-                <button type="button" onClick={() => setShowAdminPass(!showAdminPass)} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer' }}>{showAdminPass ? "🙈" : "👁️"}</button>
-              </div>
-            </div>
-
-            <button type="submit" disabled={adminLoading} style={{ width: '100%', padding: '14px', backgroundColor: '#be123c', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', marginTop: '8px' }}>
-              {adminLoading ? "Verifying..." : "Login"}
-            </button>
-          </form>
         </div>
-
       </div>
     </div>
   );

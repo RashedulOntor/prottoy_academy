@@ -1,28 +1,35 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '../../../lib/db';
+import pool from '../../../lib/db'; // সঠিক ইমপোর্ট
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { username, password } = body;
-
-    const db = await connectToDatabase();
+    const { username, password } = await request.json();
     
-    // Checking user credentials from the database
-    const [rows]: any = await db.query(
-      'SELECT user_id, username, role FROM users WHERE username = ? AND password = ?',
+    if (!username || !password) {
+      return NextResponse.json({ success: false, message: 'ইউজারনেম এবং পাসওয়ার্ড দিন!' }, { status: 400 });
+    }
+
+    // Pool ব্যবহার করে সরাসরি কোয়েরি রান করা হচ্ছে
+    const [users]: any = await pool.query(
+      'SELECT * FROM users WHERE username = ? AND password = ? AND (is_archived = FALSE OR is_archived IS NULL)', 
       [username, password]
     );
 
-    if (rows.length > 0) {
-      // If user is found, return user details along with success status
-      return NextResponse.json({ success: true, user: rows[0] }, { status: 200 });
-    } else {
-      // If username or password does not match
-      return NextResponse.json({ success: false, message: 'Invalid username or password!' }, { status: 401 });
+    if (users.length === 0) {
+      return NextResponse.json({ success: false, message: 'ভুল ইউজারনেম বা পাসওয়ার্ড!' }, { status: 401 });
     }
+
+    const user = users[0];
+    const userId = user.id || user.user_id;
+
+    return NextResponse.json({ 
+      success: true, 
+      role: user.role, 
+      id: userId 
+    });
+    
   } catch (error) {
-    console.error('Login API Error:', error);
-    return NextResponse.json({ success: false, message: 'Internal server error!' }, { status: 500 });
+    console.error('Login Error:', error);
+    return NextResponse.json({ success: false, message: 'সার্ভার সমস্যা, কিছুক্ষণ পর আবার চেষ্টা করুন।' }, { status: 500 });
   }
 }

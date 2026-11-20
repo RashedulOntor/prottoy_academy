@@ -4,17 +4,6 @@ import { useState, useEffect, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 
-const coreMembers = [
-  { id: 901, name: "Md. Rashedul Islam", designation: "Founder and CEO", education: "B.Sc in CSE (studying) at Brahmaputra International University", subjects: "Math, Science, ICT", experience: "6+ Years", image: "/faculty/rashedul.jpg" },
-  { id: 902, name: "Md. Shohel Islam", designation: "Founder and MD", education: "B.A in Bangla at Govt. Asheq Mahmud College", subjects: "Bangla", experience: "12+ Years", image: "/faculty/shohel.jpg" }
-];
-
-const otherFoundingTeachers = [
-  { id: 903, name: "Md. Ratan Hasan", designation: "Instructor", education: "B.Sc in Math (studying) at Govt. Asheq Mahmud College", subjects: "Math, Science", experience: "3+ Years", image: "/faculty/ratan.jpg" },
-  { id: 904, name: "Md. Maruf Hasan", designation: "Instructor", education: "B.A in English (studying) at Govt. Asheq Mahmud College", subjects: "English", experience: "4+ Years", image: "/faculty/maruf.jpg" },
-  { id: 905, name: "Sayan Mahmud Mahi", designation: "Instructor", education: "B.Sc in Textile Engineering (studying) at Jamalpur Textile Engineering College", subjects: "Science", experience: "3+ Years", image: "/faculty/sayan.jpg" }
-];
-
 const getDynamicRemark = (grade: string, totalObtained: number, totalFull: number) => {
   const percentage = totalFull > 0 ? (totalObtained / totalFull) * 100 : 0;
   if (grade === "F") return "❌ Unsatisfactory (Failed)! Don't lose hope—identify your weak areas, work hard, and prepare strongly for the next exam.";
@@ -39,11 +28,11 @@ const getSubjectGradeAndGP = (obt: number, full: number) => {
 };
 
 function StudentContent() {
-  const { id } = useParams(); 
+  const { id } = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlTab = searchParams.get("tab");
-  
+
   const [activeTab, setActiveTab] = useState(urlTab || "dashboard");
   const [studentData, setStudentData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -53,7 +42,14 @@ function StudentContent() {
   const [myResults, setMyResults] = useState<any[]>([]);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ fullName: "", fathersName: "", mothersName: "", className: "", address: "" });
+  const [editForm, setEditForm] = useState({
+    fullName: "",
+    fathersName: "",
+    mothersName: "",
+    phone: "",
+    address: ""
+  });
+  const [editImage, setEditImage] = useState("");
   const [updateMsg, setUpdateMsg] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [passUpdateLoading, setPassUpdateLoading] = useState(false);
@@ -62,9 +58,46 @@ function StudentContent() {
     if (urlTab) setActiveTab(urlTab);
   }, [urlTab]);
 
+  const handleStudentImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("⚠️ ছবির সাইজ ৫ মেগাবাইটের (5MB) নিচে দিন।");
+      return;
+    }
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const base64String = event.target?.result as string;
+      const img = new window.Image();
+      img.src = base64String;
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 300;
+          let scaleSize = 1;
+          if (img.width > MAX_WIDTH) scaleSize = MAX_WIDTH / img.width;
+          canvas.width = Math.round(img.width * scaleSize);
+          canvas.height = Math.round(img.height * scaleSize);
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            setEditImage(canvas.toDataURL("image/jpeg", 0.6));
+          } else {
+            setEditImage(base64String);
+          }
+        } catch (err) {
+          setEditImage(base64String);
+        }
+      };
+      img.onerror = () => setEditImage(base64String);
+    };
+    reader.onerror = () => alert("❌ ছবিটি পড়তে সমস্যা হয়েছে। অন্য ছবি চেষ্টা করুন।");
+  };
+
   const fetchMyData = async () => {
     try {
-      const res = await fetch(`/api/students?t=${new Date().getTime()}`);
+      const res = await fetch(`/api/students?t=${new Date().getTime()}`, { cache: "no-store" });
       const data = await res.json();
       let allStudents = [];
       if (data.success && Array.isArray(data.data)) allStudents = data.data;
@@ -78,7 +111,7 @@ function StudentContent() {
             fullName: myInfo.full_name || myInfo.fullName || myInfo.name || "",
             fathersName: myInfo.fathers_name || "",
             mothersName: myInfo.mothers_name || "",
-            className: myInfo.class_name || myInfo.className || myInfo.class || "",
+            phone: myInfo.phone_number || myInfo.phone || "",
             address: myInfo.address || ""
           });
         }
@@ -90,9 +123,9 @@ function StudentContent() {
     try {
       const res = await fetch(`/api/faculty?t=${new Date().getTime()}`, { cache: "no-store" });
       const data = await res.json();
-      if (data.success && Array.isArray(data.data)) setFaculties([...coreMembers, ...otherFoundingTeachers, ...data.data]); 
-      else setFaculties([...coreMembers, ...otherFoundingTeachers]);
-    } catch (err) { setFaculties([...coreMembers, ...otherFoundingTeachers]); }
+      if (data.success && Array.isArray(data.data)) setFaculties(data.data);
+      else setFaculties([]);
+    } catch (err) { setFaculties([]); }
   };
 
   const fetchMyPayments = async () => {
@@ -109,7 +142,7 @@ function StudentContent() {
     try {
       const res = await fetch(`/api/results?studentId=${id}&t=${new Date().getTime()}`, { cache: "no-store" });
       const data = await res.json();
-      
+
       if (data.success && Array.isArray(data.data)) {
         const studentResults = data.data.filter((r: any) => String(r.student_id) === String(id));
         setMyResults(studentResults);
@@ -124,31 +157,63 @@ function StudentContent() {
   const handleLogout = () => { router.push("/"); };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault(); setUpdateMsg("Updating...");
+    e.preventDefault();
+    setUpdateMsg("Updating...");
     try {
-      const res = await fetch("/api/students", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: Number(id), ...editForm }) });
+      const res = await fetch("/api/students", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: Number(id),
+          fullName: editForm.fullName,
+          fathersName: editForm.fathersName,
+          mothersName: editForm.mothersName,
+          className: studentData?.class_name || "",
+          phone: editForm.phone,
+          address: editForm.address,
+          profile_image: editImage || undefined
+        })
+      });
       const result = await res.json();
-      if (result.success) { alert("✅ Profile Updated Successfully!"); setIsEditing(false); fetchMyData(); } 
-      else alert("❌ Error updating profile.");
-    } catch (error) { alert("❌ Something went wrong."); } finally { setUpdateMsg(""); }
+      if (result.success) {
+        alert("✅ Profile Updated Successfully!");
+        setIsEditing(false);
+        setEditImage("");
+        fetchMyData();
+      } else alert("❌ Error updating profile: " + (result.message || ""));
+    } catch (error) {
+      alert("❌ Something went wrong.");
+    } finally {
+      setUpdateMsg("");
+    }
   };
 
   const handlePasswordChange = async () => {
     if (!newPassword) return alert("⚠️ Please type a new password!");
     setPassUpdateLoading(true);
     try {
-      const res = await fetch('/api/students', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'update_password', id: Number(id), newPassword: newPassword }) });
+      const res = await fetch('/api/students', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'update_password', id: Number(id), newPassword: newPassword })
+      });
       const result = await res.json();
-      if (result.success) { alert("✅ Password updated successfully!"); setNewPassword(""); } 
-      else alert("❌ Failed to update password.");
-    } catch (err) { alert("❌ Something went wrong."); } finally { setPassUpdateLoading(false); }
+      if (result.success) {
+        alert("✅ Password updated successfully!");
+        setNewPassword("");
+      } else alert("❌ Failed to update password.");
+    } catch (err) {
+      alert("❌ Something went wrong.");
+    } finally {
+      setPassUpdateLoading(false);
+    }
   };
 
   const generateDisplayResults = () => {
     if (myResults.length === 0) return [];
 
     const groupedExams: Record<string, any[]> = {};
-    
+
     myResults.forEach(res => {
       const examName = res.exam_name || "Unknown Exam";
       if (!groupedExams[examName]) groupedExams[examName] = [];
@@ -166,7 +231,7 @@ function StudentContent() {
       const uniqueSubjectsMap: Record<string, any> = {};
       subjectsArray.forEach(sub => {
         const subName = sub.subject_name || "Unknown Subject";
-        uniqueSubjectsMap[subName] = sub; 
+        uniqueSubjectsMap[subName] = sub;
       });
       const uniqueSubjectsArray = Object.values(uniqueSubjectsMap);
 
@@ -174,11 +239,11 @@ function StudentContent() {
         const full = Number(sub.full_marks || 100);
         const obt = Number(sub.total || 0);
         const highest = Number(sub.highest_marks || obt);
-        
+
         const cq = sub.cq !== null && sub.cq !== "" ? Number(sub.cq) : "-";
         const mcq = sub.mcq !== null && sub.mcq !== "" ? Number(sub.mcq) : "-";
         const pr = sub.pr !== null && sub.pr !== "" ? Number(sub.pr) : "-";
-        
+
         const { grade, gp } = getSubjectGradeAndGP(obt, full);
 
         totalFull += full;
@@ -227,23 +292,25 @@ function StudentContent() {
   };
 
   const displayResults = generateDisplayResults();
-  const inputClass = "w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-slate-900 font-bold shadow-sm outline-none";
+  const inputClass = "w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-slate-900 font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500";
 
   if (loading) return <div className="min-h-screen flex justify-center items-center bg-[#f8fafc] text-blue-600 font-bold text-xl">Loading your portal...</div>;
 
   const safeName = studentData?.full_name || studentData?.fullName || studentData?.name || "Student";
-  const safeClass = studentData?.class_name || studentData?.className || studentData?.class || "Ten";
+  const safeClass = studentData?.class_name || studentData?.className || studentData?.class || "N/A";
 
   return (
     <div className="w-full min-h-screen print:min-h-0 bg-[#f8fafc] print:bg-white text-slate-900 font-sans pb-20 print:pb-0">
       <div className="max-w-7xl mx-auto w-full p-4 md:p-8 print:p-0 print:max-w-none">
-        
-        <div className="no-print print:hidden flex justify-between items-center bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
+
+        {/* TOP HEADER (CLEAN) */}
+        <div className="no-print print:hidden flex justify-between items-center bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-200 mb-8 gap-4">
           <div>
             <h2 className="text-xl md:text-2xl font-black text-slate-800">Student Portal</h2>
-            <p className="text-sm font-semibold text-slate-500">Prottoy Academy</p>
+            <p className="text-xs md:text-sm font-semibold text-slate-500">Prottoy Academy</p>
           </div>
-          <button onClick={handleLogout} className="bg-red-50 hover:bg-red-100 text-red-600 font-bold py-2 px-5 rounded-xl border border-red-100">
+
+          <button onClick={handleLogout} className="bg-red-50 hover:bg-red-100 text-red-600 font-bold py-2.5 px-4 md:px-5 rounded-xl border border-red-100 transition-colors text-sm">
             🚪 <span className="hidden md:inline">Logout</span>
           </button>
         </div>
@@ -261,33 +328,70 @@ function StudentContent() {
 
         {activeTab === "dashboard" && (
           <div className="animate-fade-in">
+            {/* HERO BANNER WITH FULL-FIT PHOTO CARD & OVERLAY ID/CLASS */}
             <div className="relative bg-[#0a192f] text-white rounded-[2rem] p-8 md:p-12 mb-10 overflow-hidden shadow-2xl">
-              <div className="relative z-10">
-                <p className="text-blue-400 font-bold tracking-widest mb-2 text-sm uppercase">Academic Overview</p>
-                <h1 className="text-3xl md:text-5xl font-black mb-4 text-white">
-                  Welcome back, <span className="text-emerald-300">{safeName}</span>!
-                </h1>
-                <p className="text-slate-400 text-base md:text-lg max-w-xl font-medium">Track your academic progress, view exam results, and access all your class materials in one place.</p>
+              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                <div className="text-center md:text-left">
+                  <p className="text-blue-400 font-bold tracking-widest mb-2 text-sm uppercase">Academic Overview</p>
+                  <h1 className="text-3xl md:text-5xl font-black mb-4 text-white">
+                    Welcome back, <span className="text-emerald-300">{safeName}</span>!
+                  </h1>
+                  <p className="text-slate-400 text-base md:text-lg max-w-xl font-medium">
+                    Track your academic progress, view exam results, and access all your class materials in one place.
+                  </p>
+                </div>
+
+                {/* Full-Fit Professional Photo Card with ID & Class Overlay */}
+                <div
+                  onClick={() => router.push("?tab=profile")}
+                  title="Open Profile"
+                  className="relative w-44 h-52 md:w-48 md:h-56 rounded-3xl overflow-hidden border-2 border-white/20 shadow-2xl cursor-pointer group shrink-0 bg-slate-800"
+                >
+                  {studentData?.profile_image ? (
+                    <img
+                      src={studentData.profile_image}
+                      alt={safeName}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-900 text-emerald-300 flex items-center justify-center font-black text-5xl">
+                      {safeName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+
+                  {/* Smooth Dark Gradient Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0a192f] via-[#0a192f]/35 to-transparent" />
+
+                  {/* ID & Class on Top of Image */}
+                  <div className="absolute bottom-0 inset-x-0 p-3.5 text-center">
+                    <p className="text-xs font-black text-white tracking-wider drop-shadow">
+                      ID: {studentData?.student_id || id}
+                    </p>
+                    <span className="inline-block mt-1 px-3 py-0.5 rounded-full bg-emerald-500/20 backdrop-blur-md border border-emerald-400/40 text-emerald-300 text-[11px] font-bold shadow-sm">
+                      {safeClass}{studentData?.student_group ? ` • ${studentData.student_group}` : ""}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div onClick={() => router.push(`?tab=profile`)} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer">
+              <div onClick={() => router.push(`?tab=profile`)} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
                 <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-2xl mb-6">👤</div>
                 <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase">My Profile</h3>
                 <p className="text-2xl font-black text-slate-800 flex justify-between">Details <span>➔</span></p>
               </div>
-              <div onClick={() => router.push(`?tab=payments`)} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer">
+              <div onClick={() => router.push(`?tab=payments`)} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl mb-6">💳</div>
                 <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase">My Payments</h3>
                 <p className="text-2xl font-black text-slate-800 flex justify-between">History <span>➔</span></p>
               </div>
-              <div onClick={() => window.open("https://youtube.com/@dreamupacademy", "_blank")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer">
+              <div onClick={() => window.open("https://youtube.com/@dreamupacademy", "_blank")} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
                 <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center text-2xl mb-6">🎥</div>
                 <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase">Class Lectures</h3>
                 <p className="text-2xl font-black text-slate-800 flex justify-between">Watch <span>➔</span></p>
               </div>
-              <div onClick={() => router.push(`?tab=results`)} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer">
+              <div onClick={() => router.push(`?tab=results`)} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg cursor-pointer transition-shadow">
                 <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center text-2xl mb-6">🏆</div>
                 <h3 className="text-slate-500 font-bold mb-1 text-sm uppercase">Exam Results</h3>
                 <p className="text-2xl font-black text-slate-800 flex justify-between">Check <span>➔</span></p>
@@ -300,31 +404,140 @@ function StudentContent() {
           <div className="max-w-3xl mx-auto">
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-3xl font-black text-slate-900">My Profile</h1>
-              {!isEditing && <button onClick={() => setIsEditing(true)} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold">✏️ Edit Details</button>}
+              {!isEditing && (
+                <button onClick={() => setIsEditing(true)} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors">
+                  ✏️ Edit Details
+                </button>
+              )}
             </div>
             <div className="bg-white rounded-3xl p-6 md:p-10 shadow-sm border border-slate-200">
               {!isEditing ? (
                 <div className="space-y-5">
+                  <div className="flex items-center gap-5 pb-6 border-b border-slate-100">
+                    {studentData.profile_image ? (
+                      <img src={studentData.profile_image} alt={safeName} className="w-24 h-24 rounded-full object-cover border-4 border-blue-100 shadow-md" />
+                    ) : (
+                      <div className="w-24 h-24 rounded-full bg-blue-50 text-blue-600 border-4 border-blue-100 flex items-center justify-center font-black text-3xl shadow-sm">
+                        {safeName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <h2 className="text-2xl font-black text-slate-900">{safeName}</h2>
+                      <p className="text-sm font-bold text-blue-600 mt-0.5">{safeClass} {studentData.student_group ? `• ${studentData.student_group}` : ""}</p>
+                      <p className="text-xs font-semibold text-slate-500 mt-1">Student ID (Login ID): {studentData.student_id}</p>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] border-b pb-4"><span className="text-slate-500 font-bold">Full Name:</span><span className="font-black text-xl">{safeName}</span></div>
                   <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] border-b pb-4"><span className="text-slate-500 font-bold">Father&apos;s Name:</span><span className="font-bold">{studentData.fathers_name || "Not provided"}</span></div>
                   <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] border-b pb-4"><span className="text-slate-500 font-bold">Mother&apos;s Name:</span><span className="font-bold">{studentData.mothers_name || "Not provided"}</span></div>
                   <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] border-b pb-4"><span className="text-slate-500 font-bold">Class:</span><span className="text-blue-600 font-black">{safeClass}</span></div>
+                  <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] border-b pb-4"><span className="text-slate-500 font-bold">Phone Number:</span><span className="font-bold">{studentData.phone_number || studentData.phone || "Not provided"}</span></div>
                   <div className="grid grid-cols-1 md:grid-cols-[180px_1fr]"><span className="text-slate-500 font-bold">Address:</span><span className="font-bold">{studentData.address || "Not provided"}</span></div>
 
                   <div className="mt-8 pt-8 border-t-2 border-dashed border-slate-200">
                     <h3 className="text-xl font-black mb-4">🛡️ Change Login Password</h3>
                     <div className="flex flex-col sm:flex-row gap-3 max-w-md">
                       <input type="text" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Type new password" className={inputClass} />
-                      <button onClick={handlePasswordChange} disabled={passUpdateLoading} className="px-8 py-3 bg-[#0a192f] text-white rounded-xl font-bold">{passUpdateLoading ? "..." : "Update"}</button>
+                      <button onClick={handlePasswordChange} disabled={passUpdateLoading} className="px-8 py-3 bg-[#0a192f] hover:bg-slate-800 text-white rounded-xl font-bold transition-colors">
+                        {passUpdateLoading ? "..." : "Update"}
+                      </button>
                     </div>
                   </div>
                 </div>
               ) : (
-                <form onSubmit={handleUpdateProfile} className="space-y-6">
-                  <div><label className="block text-sm font-bold mb-2">Full Name</label><input type="text" value={editForm.fullName} onChange={e => setEditForm({...editForm, fullName: e.target.value})} required className={inputClass} /></div>
-                  <div className="flex gap-4">
-                    <button type="submit" className="flex-1 py-4 bg-blue-600 text-white font-black rounded-xl">{updateMsg || "💾 Save Changes"}</button>
-                    <button type="button" onClick={() => setIsEditing(false)} className="px-8 py-4 bg-slate-100 font-bold rounded-xl">Cancel</button>
+                <form onSubmit={handleUpdateProfile} className="space-y-5">
+                  {/* ছবি পরিবর্তনের অপশন */}
+                  <div className="flex flex-col sm:flex-row items-center gap-5 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                    {editImage || studentData.profile_image ? (
+                      <img
+                        src={editImage || studentData.profile_image}
+                        alt="Preview"
+                        className="w-20 h-20 rounded-full object-cover border-2 border-blue-500 shadow-sm shrink-0"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-2xl shrink-0">
+                        {safeName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="w-full">
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                        Change Profile Picture
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleStudentImageSelect}
+                        className="text-xs w-full"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Full Name *</label>
+                    <input
+                      type="text"
+                      value={editForm.fullName}
+                      onChange={e => setEditForm({ ...editForm, fullName: e.target.value })}
+                      required
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Father&apos;s Name</label>
+                      <input
+                        type="text"
+                        value={editForm.fathersName}
+                        onChange={e => setEditForm({ ...editForm, fathersName: e.target.value })}
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mother&apos;s Name</label>
+                      <input
+                        type="text"
+                        value={editForm.mothersName}
+                        onChange={e => setEditForm({ ...editForm, mothersName: e.target.value })}
+                        className={inputClass}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone Number</label>
+                      <input
+                        type="text"
+                        value={editForm.phone}
+                        onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                        placeholder="017XXXXXXXX"
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Address</label>
+                      <input
+                        type="text"
+                        value={editForm.address}
+                        onChange={e => setEditForm({ ...editForm, address: e.target.value })}
+                        className={inputClass}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 pt-2">
+                    <button type="submit" disabled={!!updateMsg} className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl transition-colors">
+                      {updateMsg || "💾 Save Changes"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setIsEditing(false); setEditImage(""); }}
+                      className="px-8 py-4 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl transition-colors"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </form>
               )}
@@ -334,14 +547,19 @@ function StudentContent() {
 
         {activeTab === "faculty" && (
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {faculties.map((teacher) => (
+            {faculties.length > 0 ? faculties.map((teacher) => (
               <div key={teacher.id} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-200 p-5">
                 <img src={teacher.image || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} alt={teacher.name} className="w-full aspect-square object-cover rounded-2xl mb-4" />
                 <h3 className="text-xl font-black">{teacher.name}</h3>
                 <p className="text-blue-600 font-bold text-sm mb-2">{teacher.designation}</p>
                 <p className="text-xs text-slate-600">🎓 {teacher.education}</p>
+                {teacher.subjects && <p className="text-xs text-slate-700 font-semibold mt-1">📚 {teacher.subjects}</p>}
               </div>
-            ))}
+            )) : (
+              <div className="col-span-full bg-white rounded-3xl p-12 text-center border border-slate-200 text-slate-500 font-bold">
+                No faculty members listed yet.
+              </div>
+            )}
           </div>
         )}
 
@@ -372,12 +590,12 @@ function StudentContent() {
             <div className="no-print print:hidden flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div>
                 <h1 className="text-3xl font-black text-slate-900">Academic Marksheet</h1>
-                <p className="text-sm text-slate-500 font-semibold"> Print your result easily </p>
+                <p className="text-sm text-slate-500 font-semibold">Print your result easily</p>
               </div>
               <div className="flex flex-wrap gap-3">
                 {displayResults.length > 0 && (
                   <button onClick={() => window.print()} className="px-6 py-2.5 bg-[#0a192f] hover:bg-slate-800 text-white font-black rounded-xl shadow-md flex items-center gap-2 text-sm">
-                    🖨️ Print Marksheet 
+                    🖨️ Print Marksheet
                   </button>
                 )}
               </div>
@@ -386,12 +604,12 @@ function StudentContent() {
             <div className="space-y-10 print:space-y-0">
               {displayResults.length > 0 ? displayResults.map((res: any) => (
                 <div key={res.id} className="marksheet-page relative overflow-hidden bg-white mx-auto max-w-[920px] p-6 md:p-8 border-[3px] border-black shadow-2xl print:shadow-none text-black">
-                  
+
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0">
-                    <img 
-                      src="/prottoy academy logo.png" 
-                      alt="Prottoy Academy Watermark" 
-                      className="w-[340px] h-[340px] md:w-[420px] md:h-[420px] object-contain opacity-[0.08] print:opacity-[0.10]" 
+                    <img
+                      src="/prottoy academy logo.png"
+                      alt="Prottoy Academy Watermark"
+                      className="w-[340px] h-[340px] md:w-[420px] md:h-[420px] object-contain opacity-[0.08] print:opacity-[0.10]"
                     />
                   </div>
 
@@ -411,7 +629,7 @@ function StudentContent() {
                         <div className="text-center md:text-right print:text-right">
                           <h2 className="text-xl font-black text-emerald-800 uppercase tracking-tight">PROTTOY ACADEMY</h2>
                           <p className="text-xs font-bold text-gray-800">Bhabki Bazar, Melandah, Jamalpur</p>
-                        <p className="text-[11px] font-semibold text-gray-700">ESTD:- 2025 | Academic Portal </p>
+                          <p className="text-[11px] font-semibold text-gray-700">ESTD:- 2025 | Academic Portal</p>
                         </div>
                       </div>
 
@@ -423,9 +641,8 @@ function StudentContent() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-[1fr_240px] print:grid-cols-[1fr_220px] gap-4 mb-3 items-start">
-                      
+
                       <div className="text-xs space-y-1.5 font-semibold">
-                        {/* 🔴 FIXED: Dynamic Profile Picture on Marksheet */}
                         <div className="w-20 h-20 border border-black bg-gray-100/80 flex items-center justify-center rounded mb-2 overflow-hidden">
                           {studentData?.profile_image ? (
                             <img src={studentData.profile_image} alt="Student" className="w-full h-full object-cover" />
@@ -485,7 +702,7 @@ function StudentContent() {
                     </p>
 
                     <h3 className="text-center font-black text-sm underline mb-2">Subject-Wise Grade/Marks</h3>
-                    
+
                     <div className="overflow-x-auto">
                       <table className="w-full border-collapse border-[1.5px] border-black text-xs bg-transparent">
                         <thead>
@@ -549,7 +766,7 @@ function StudentContent() {
                         Class Teacher
                       </div>
                       <div className="text-center border-t border-black pt-1 w-44">
-                        Director / CEO<br/>
+                        Director / CEO<br />
                         <span className="text-[10px] font-normal">Prottoy Academy</span>
                       </div>
                     </div>
