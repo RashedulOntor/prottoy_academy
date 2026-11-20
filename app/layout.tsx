@@ -19,6 +19,10 @@ export const metadata: Metadata = {
     default: "Prottoy Academy | প্রত্যয় একাডেমি — Bhabki Bazar, Melandah, Jamalpur",
     template: "%s | Prottoy Academy",
   },
+
+  verification: {
+  google: "AhOiq5K8bLppnQXfdK8TBapZuF5X4JUXS9j8JaInDBE",
+},
   description:
     "Prottoy Academy (প্রত্যয় একাডেমি) is a specialized academic coaching center and digital education management portal in Bhabki Bazar, Melandah, Jamalpur for Class 6–10 students.",
   keywords: [
