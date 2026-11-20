@@ -729,18 +729,156 @@ function StudentContent() {
           </div>
         )}
 
+
+        const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
+
+
         {activeTab === "payments" && (
-          <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-            <table className="min-w-full text-left border-collapse">
-              <thead className="bg-slate-50 border-b">
-                <tr><th className="p-4">Date</th><th className="p-4">Purpose</th><th className="p-4">Amount</th><th className="p-4 text-center">Status</th></tr>
-              </thead>
-              <tbody className="divide-y">
-                {myPayments.map((p: any, i: number) => (
-                  <tr key={i}><td className="p-4">{p.payment_date?.substring(0, 10)}</td><td className="p-4 font-bold">{p.payment_purpose}</td><td className="p-4 font-black text-emerald-600">{p.amount} ৳</td><td className="p-4 text-center font-bold">{p.payment_status}</td></tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="max-w-4xl mx-auto">
+            <div className="no-print bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-5 border-b border-slate-100">
+                <h1 className="text-2xl font-black text-slate-900">💳 My Payment History</h1>
+                <p className="text-xs font-semibold text-slate-500">Click &ldquo;Slip / PDF&rdquo; to print or download your official money receipt</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left border-collapse text-sm">
+                  <thead className="bg-slate-50 border-b text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="p-4">Date</th>
+                      <th className="p-4">Purpose</th>
+                      <th className="p-4">Amount</th>
+                      <th className="p-4">Received By</th>
+                      <th className="p-4 text-center">Status</th>
+                      <th className="p-4 text-center">Slip</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {myPayments.length > 0 ? myPayments.map((p: any, i: number) => (
+                      <tr key={p.id || p.payment_id || i}>
+                        <td className="p-4">{p.payment_date?.substring(0, 10)}</td>
+                        <td className="p-4 font-bold">{p.payment_purpose}</td>
+                        <td className="p-4 font-black text-emerald-600">{p.amount} ৳</td>
+                        <td className="p-4 font-semibold text-blue-700">{p.received_by || "Admin"}</td>
+                        <td className="p-4 text-center font-bold">
+                          <span className={`px-3 py-1 rounded-full text-xs font-black ${p.payment_status === "Paid" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                            {p.payment_status}
+                          </span>
+                        </td>
+                        <td className="p-4 text-center">
+                          <button
+                            onClick={() => setSelectedReceipt(p)}
+                            className="px-3.5 py-1.5 bg-[#0a192f] hover:bg-slate-800 text-white rounded-lg font-bold text-xs"
+                          >
+                            📄 Slip / PDF
+                          </button>
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr><td colSpan={6} className="p-8 text-center text-slate-500 font-bold">No payment records found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {selectedReceipt && (
+              <div
+                onClick={() => setSelectedReceipt(null)}
+                className="fixed inset-0 z-50 bg-black/60 print:bg-white print:static flex items-center justify-center p-4 print:p-0"
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="relative bg-white rounded-2xl print:rounded-none max-w-lg w-full max-h-[90vh] overflow-y-auto print:max-h-none print:overflow-visible p-6 shadow-2xl print:shadow-none border-2 border-slate-900"
+                >
+                  <button
+                    onClick={() => setSelectedReceipt(null)}
+                    className="no-print absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-600 font-black flex items-center justify-center"
+                    title="Close"
+                  >
+                    ✕
+                  </button>
+
+                  <div className="flex flex-col items-center text-center border-b-2 border-slate-900 pb-3 mb-4">
+                    <img
+                      src="/prottoy academy logo.png"
+                      alt="Prottoy Academy Logo"
+                      className="w-14 h-14 rounded-full object-cover border border-slate-300 mb-2"
+                    />
+                    <h2 className="text-xl font-black text-emerald-800 leading-tight">প্রত্যয় একাডেমি</h2>
+                    <p className="text-xs font-black text-slate-700 tracking-wider uppercase">PROTTOY ACADEMY</p>
+                    <p className="text-[11px] font-semibold text-slate-500">ভাবকী বাজার, মেলান্দহ, জামালপুর</p>
+                    <span className="inline-block mt-2 px-4 py-0.5 bg-slate-900 text-white text-[11px] font-black uppercase tracking-widest rounded-full">
+                      Official Money Receipt
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 text-sm mb-5">
+                    <div className="flex justify-between border-b border-dashed pb-1.5">
+                      <span className="text-slate-500 font-bold">Receipt No:</span>
+                      <span className="font-black">PA-{selectedReceipt.id || selectedReceipt.payment_id || "001"}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-dashed pb-1.5">
+                      <span className="text-slate-500 font-bold">Date:</span>
+                      <span className="font-bold">{selectedReceipt.payment_date?.substring(0, 10)}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-dashed pb-1.5">
+                      <span className="text-slate-500 font-bold">Student Name:</span>
+                      <span className="font-black">{safeName}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-dashed pb-1.5">
+                      <span className="text-slate-500 font-bold">Student ID &amp; Class:</span>
+                      <span className="font-bold">{studentData?.student_id || id} ({safeClass})</span>
+                    </div>
+                    <div className="flex justify-between border-b border-dashed pb-1.5">
+                      <span className="text-slate-500 font-bold">Purpose:</span>
+                      <span className="font-bold text-right">{selectedReceipt.payment_purpose}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-dashed pb-1.5">
+                      <span className="text-slate-500 font-bold">Received By:</span>
+                      <span className="font-bold text-blue-700">{selectedReceipt.received_by || "Admin"}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-dashed pb-1.5">
+                      <span className="text-slate-500 font-bold">Status:</span>
+                      <span className="font-black uppercase">{selectedReceipt.payment_status}</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-emerald-50 p-3 rounded-xl border border-emerald-200 mt-2">
+                      <span className="font-black text-slate-800">Total Amount:</span>
+                      <span className="text-xl font-black text-emerald-700">{selectedReceipt.amount} ৳</span>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-end mt-8 pt-3 text-xs font-bold text-slate-700">
+                    <div className="border-t border-slate-900 pt-1 w-36 text-center">Student / Guardian</div>
+                    <div className="border-t border-slate-900 pt-1 w-40 text-center">
+                      {selectedReceipt.received_by || "Admin"}<br />
+                      <span className="text-[10px] font-normal">Authorized Signature</span>
+                    </div>
+                  </div>
+
+                  <div className="no-print flex gap-3 mt-5 pt-4 border-t">
+                    <button
+                      onClick={() => window.print()}
+                      className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-sm"
+                    >
+                      🖨️ Print / Save PDF
+                    </button>
+                    <button
+                      onClick={() => setSelectedReceipt(null)}
+                      className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-sm"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <style dangerouslySetInnerHTML={{__html: `
+              @media print {
+                .no-print { display: none !important; }
+                body { background: #ffffff !important; }
+              }
+            `}} />
           </div>
         )}
 

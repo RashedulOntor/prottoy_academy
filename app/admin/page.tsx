@@ -15,8 +15,9 @@ const calculateGradeInfo = (obtained: number, fullMarks: number = 100) => {
   return { grade: "F", gp: "0.00" };
 };
 
-const EXAM_NAMES = ["Half Yearly Exam", "Annual Exam", "Pre-Test Exam", "Test Exam", "Model Test", "class test"];
+const EXAM_NAMES = ["Half Yearly Exam", "Annual Exam", "Pre-Test Exam", "Test Exam", "Model Test", "Class Test"];
 const CLASSES = ["Class 6", "Class 7", "Class 8", "Class 9", "Class 10"];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 const getClassCode = (cls: string) => {
   const map: Record<string, string> = {
@@ -138,7 +139,10 @@ function AdminContent() {
   const [paySearchQuery, setPaySearchQuery] = useState("");
   const [payStudentId, setPayStudentId] = useState("");
   const [payAmount, setPayAmount] = useState("");
-  const [payPurpose, setPayPurpose] = useState("");
+  const [payType, setPayType] = useState("Monthly Fee");
+  const [payMonth, setPayMonth] = useState(MONTHS[new Date().getMonth()]);
+  const [payExamName, setPayExamName] = useState("");
+  const [payCustomNote, setPayCustomNote] = useState("");
   const [payStatus, setPayStatus] = useState("Paid");
   const [payReceivedBy, setPayReceivedBy] = useState("Admin");
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
@@ -748,7 +752,22 @@ function AdminContent() {
   };
 
   const handleRecordPayment = async () => {
-    if (!payStudentId || !payAmount || !payPurpose) return alert("❌ Required fields missing!");
+    if (!payStudentId || !payAmount) return alert("❌ Student and Amount are required!");
+
+    let finalPurpose = payType;
+    if (payType === "Monthly Fee") {
+      if (!payMonth) return alert("⚠️ Please select a month!");
+      finalPurpose = `Monthly Fee - ${payMonth} ${currentYear}`;
+    } else if (payType === "Exam Fee") {
+      if (!payExamName) return alert("⚠️ Please select an exam!");
+      finalPurpose = `Exam Fee - ${payExamName}`;
+    } else if (payType === "Fine") {
+      finalPurpose = payCustomNote ? `Fine - ${payCustomNote}` : "Fine (জরিমানা)";
+    } else if (payType === "Other") {
+      if (!payCustomNote) return alert("⚠️ Please specify the purpose!");
+      finalPurpose = payCustomNote;
+    }
+
     setPayLoading("Recording...");
     try {
       const res = await fetch("/api/payments", {
@@ -757,7 +776,7 @@ function AdminContent() {
         body: JSON.stringify({
           student_id: payStudentId,
           amount: payAmount,
-          payment_purpose: payPurpose,
+          payment_purpose: finalPurpose,
           payment_status: payStatus,
           received_by: payReceivedBy || "Admin"
         })
@@ -766,7 +785,8 @@ function AdminContent() {
         alert("✅ Payment Recorded!");
         setPayStudentId("");
         setPayAmount("");
-        setPayPurpose("");
+        setPayExamName("");
+        setPayCustomNote("");
         fetchPayments();
       }
     } catch (err) {} finally {
@@ -1621,28 +1641,72 @@ function AdminContent() {
             <h1 className="text-2xl font-black text-slate-800 mb-6">Student Payments Management</h1>
             <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 mb-8">
               <h3 className="text-lg font-black text-slate-700 border-b border-slate-100 pb-4 mb-5">+ Record Payment</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Student *</label>
                   <select value={payStudentId} onChange={(e) => setPayStudentId(e.target.value)} className={inputClass}>
-                    <option value="">-- Choose --</option>
+                    <option value="">-- Choose Student --</option>
                     {filteredStudentsForPayment.map(std => (
                       <option key={std.student_id} value={std.student_id}>{std.full_name} ({std.class_name})</option>
                     ))}
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Payment Type *</label>
+                  <select value={payType} onChange={(e) => setPayType(e.target.value)} className={inputClass}>
+                    <option value="Monthly Fee">Monthly Fee (মাসিক বেতন)</option>
+                    <option value="Exam Fee">Exam Fee (পরীক্ষার ফি)</option>
+                    <option value="Admission Fee">Admission Fee (ভর্তি ফি)</option>
+                    <option value="Fine">Fine (জরিমানা)</option>
+                    <option value="Other">Other (অন্যান্য)</option>
+                  </select>
+                </div>
+
+                {payType === "Monthly Fee" && (
+                  <div>
+                    <label className="block text-xs font-bold text-blue-600 uppercase mb-1.5">Select Month *</label>
+                    <select value={payMonth} onChange={(e) => setPayMonth(e.target.value)} className={inputClass}>
+                      {MONTHS.map(m => <option key={m} value={m}>{m} {currentYear}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                {payType === "Exam Fee" && (
+                  <div>
+                    <label className="block text-xs font-bold text-blue-600 uppercase mb-1.5">Select Exam *</label>
+                    <select value={payExamName} onChange={(e) => setPayExamName(e.target.value)} className={inputClass}>
+                      <option value="">-- Choose Exam --</option>
+                      {EXAM_NAMES.map(ex => <option key={ex} value={ex}>{ex}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                {(payType === "Fine" || payType === "Other") && (
+                  <div>
+                    <label className="block text-xs font-bold text-blue-600 uppercase mb-1.5">
+                      {payType === "Fine" ? "Reason (Optional)" : "Specify Purpose *"}
+                    </label>
+                    <input
+                      type="text"
+                      value={payCustomNote}
+                      onChange={(e) => setPayCustomNote(e.target.value)}
+                      placeholder={payType === "Fine" ? "e.g. Late Fee / Absent" : "e.g. ID Card / Sheet"}
+                      className={inputClass}
+                    />
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Amount (৳) *</label>
                   <input type="number" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="0" className={inputClass} />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Purpose *</label>
-                  <input type="text" value={payPurpose} onChange={(e) => setPayPurpose(e.target.value)} placeholder="Monthly Fee / Exam" className={inputClass} />
-                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Received By *</label>
                   <input type="text" value={payReceivedBy} onChange={(e) => setPayReceivedBy(e.target.value)} placeholder="e.g. Rashedul Sir" className={inputClass} />
                 </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Status *</label>
                   <select value={payStatus} onChange={(e) => setPayStatus(e.target.value)} className={inputClass}>
@@ -1650,7 +1714,8 @@ function AdminContent() {
                     <option value="Pending">Pending</option>
                   </select>
                 </div>
-                <div className="lg:col-span-5 mt-2">
+
+                <div className="lg:col-span-3 mt-2">
                   <button type="button" onClick={handleRecordPayment} disabled={!!payLoading} className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-sm transition-colors w-full md:w-auto">
                     {payLoading ? payLoading : "💾 Record Payment"}
                   </button>
@@ -1711,71 +1776,91 @@ function AdminContent() {
             </div>
           </div>
 
-          {/* PRINTABLE MONEY RECEIPT MODAL */}
+          {/* SCROLLABLE PRINTABLE MONEY RECEIPT MODAL */}
           {selectedReceipt && (
-            <div className="fixed inset-0 z-50 bg-black/60 print:bg-white print:static flex items-center justify-center p-4 print:p-0">
-              <div className="bg-white rounded-2xl print:rounded-none max-w-xl w-full p-6 md:p-8 shadow-2xl print:shadow-none border-2 border-slate-800">
-                <div className="text-center border-b-2 border-slate-800 pb-4 mb-5">
-                  <h2 className="text-2xl font-black text-emerald-800">প্রত্যয় একাডেমি (PROTTOY ACADEMY)</h2>
-                  <p className="text-xs font-bold text-slate-600">ভাবকী বাজার, মেলান্দহ, জামালপুর</p>
-                  <span className="inline-block mt-2 px-4 py-1 bg-slate-900 text-white text-xs font-black uppercase tracking-widest rounded-full">
+            <div
+              onClick={() => setSelectedReceipt(null)}
+              className="fixed inset-0 z-50 bg-black/60 print:bg-white print:static flex items-center justify-center p-4 print:p-0"
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="relative bg-white rounded-2xl print:rounded-none max-w-lg w-full max-h-[90vh] overflow-y-auto print:max-h-none print:overflow-visible p-6 shadow-2xl print:shadow-none border-2 border-slate-900"
+              >
+                <button
+                  onClick={() => setSelectedReceipt(null)}
+                  className="no-print absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-600 font-black flex items-center justify-center"
+                  title="Close"
+                >
+                  ✕
+                </button>
+
+                <div className="flex flex-col items-center text-center border-b-2 border-slate-900 pb-3 mb-4">
+                  <img
+                    src="/prottoy academy logo.png"
+                    alt="Prottoy Academy Logo"
+                    className="w-14 h-14 rounded-full object-cover border border-slate-300 mb-2"
+                  />
+                  <h2 className="text-xl font-black text-emerald-800 leading-tight">প্রত্যয় একাডেমি</h2>
+                  <p className="text-xs font-black text-slate-700 tracking-wider uppercase">PROTTOY ACADEMY</p>
+                  <p className="text-[11px] font-semibold text-slate-500">ভাবকী বাজার, মেলান্দহ, জামালপুর</p>
+                  <span className="inline-block mt-2 px-4 py-0.5 bg-slate-900 text-white text-[11px] font-black uppercase tracking-widest rounded-full">
                     Official Money Receipt
                   </span>
                 </div>
 
-                <div className="space-y-2.5 text-sm mb-6">
-                  <div className="flex justify-between border-b border-dashed pb-2">
+                <div className="space-y-2 text-sm mb-5">
+                  <div className="flex justify-between border-b border-dashed pb-1.5">
                     <span className="text-slate-500 font-bold">Receipt No:</span>
                     <span className="font-black">PA-{selectedReceipt.id || selectedReceipt.payment_id || "001"}</span>
                   </div>
-                  <div className="flex justify-between border-b border-dashed pb-2">
+                  <div className="flex justify-between border-b border-dashed pb-1.5">
                     <span className="text-slate-500 font-bold">Date:</span>
                     <span className="font-bold">{selectedReceipt.payment_date?.substring(0, 10)}</span>
                   </div>
-                  <div className="flex justify-between border-b border-dashed pb-2">
+                  <div className="flex justify-between border-b border-dashed pb-1.5">
                     <span className="text-slate-500 font-bold">Student Name:</span>
                     <span className="font-black">{selectedReceipt.full_name}</span>
                   </div>
-                  <div className="flex justify-between border-b border-dashed pb-2">
+                  <div className="flex justify-between border-b border-dashed pb-1.5">
                     <span className="text-slate-500 font-bold">Student ID &amp; Class:</span>
                     <span className="font-bold">{selectedReceipt.student_id} ({selectedReceipt.class_name})</span>
                   </div>
-                  <div className="flex justify-between border-b border-dashed pb-2">
+                  <div className="flex justify-between border-b border-dashed pb-1.5">
                     <span className="text-slate-500 font-bold">Purpose:</span>
-                    <span className="font-bold">{selectedReceipt.payment_purpose}</span>
+                    <span className="font-bold text-right">{selectedReceipt.payment_purpose}</span>
                   </div>
-                  <div className="flex justify-between border-b border-dashed pb-2">
+                  <div className="flex justify-between border-b border-dashed pb-1.5">
                     <span className="text-slate-500 font-bold">Received By:</span>
                     <span className="font-bold text-blue-700">{selectedReceipt.received_by || "Admin"}</span>
                   </div>
-                  <div className="flex justify-between border-b border-dashed pb-2">
+                  <div className="flex justify-between border-b border-dashed pb-1.5">
                     <span className="text-slate-500 font-bold">Status:</span>
                     <span className="font-black uppercase">{selectedReceipt.payment_status}</span>
                   </div>
-                  <div className="flex justify-between items-center bg-emerald-50 p-3 rounded-xl border border-emerald-200 mt-3">
-                    <span className="font-black text-slate-800">Total Amount Paid:</span>
+                  <div className="flex justify-between items-center bg-emerald-50 p-3 rounded-xl border border-emerald-200 mt-2">
+                    <span className="font-black text-slate-800">Total Amount:</span>
                     <span className="text-xl font-black text-emerald-700">{selectedReceipt.amount} ৳</span>
                   </div>
                 </div>
 
-                <div className="flex justify-between items-end mt-10 pt-4 text-xs font-bold text-slate-700">
-                  <div className="border-t border-slate-800 pt-1 w-36 text-center">Student / Guardian</div>
-                  <div className="border-t border-slate-800 pt-1 w-40 text-center">
+                <div className="flex justify-between items-end mt-8 pt-3 text-xs font-bold text-slate-700">
+                  <div className="border-t border-slate-900 pt-1 w-36 text-center">Student / Guardian</div>
+                  <div className="border-t border-slate-900 pt-1 w-40 text-center">
                     {selectedReceipt.received_by || "Admin"}<br />
                     <span className="text-[10px] font-normal">Authorized Signature</span>
                   </div>
                 </div>
 
-                <div className="no-print flex gap-3 mt-6 pt-4 border-t">
+                <div className="no-print flex gap-3 mt-5 pt-4 border-t">
                   <button
                     onClick={() => window.print()}
-                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-sm"
+                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-sm"
                   >
-                    🖨️ Print / Save as PDF
+                    🖨️ Print / Save PDF
                   </button>
                   <button
                     onClick={() => setSelectedReceipt(null)}
-                    className="px-6 py-3 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-sm"
+                    className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-sm"
                   >
                     Close
                   </button>
