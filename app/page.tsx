@@ -39,6 +39,7 @@ export default function HomePage() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginRoleHint, setLoginRoleHint] = useState<PortalRoleHint>("student");
+  const [isRoleLocked, setIsRoleLocked] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Login Form States
@@ -80,12 +81,21 @@ export default function HomePage() {
     fetchPublicData();
   }, []);
 
-  const openLoginWithRole = (role: PortalRoleHint = "student") => {
+  const openLoginWithRole = (role: PortalRoleHint = "student", lockRole: boolean = false) => {
     setLoginRoleHint(role);
+    setIsRoleLocked(lockRole);
+    setUsername("");
+    setPassword("");
     setErrorMsg("");
     setShowWelcomeModal(false);
     setShowLoginModal(true);
     setMobileMenuOpen(false);
+  };
+
+  const roleLabels: Record<PortalRoleHint, string> = {
+    student: "Student",
+    faculty: "Faculty",
+    admin: "Admin",
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -103,7 +113,16 @@ export default function HomePage() {
       const data = await res.json();
 
       if (data.success) {
-        showToast("লগইন সফল হয়েছে! পোর্টালে নিয়ে যাওয়া হচ্ছে...", "success");
+        // Strict Role Check: অন্য রোলের অ্যাকাউন্ট দিয়ে লগইন ব্লক করা
+        if (data.role !== loginRoleHint) {
+          const msg = `এই অ্যাকাউন্টটি ${roleLabels[loginRoleHint]} পোর্টালের নয়! সঠিক পোর্টাল থেকে লগইন করুন।`;
+          setErrorMsg(msg);
+          showToast(msg, "error");
+          return;
+        }
+
+        showToast(`${roleLabels[loginRoleHint]} লগইন সফল হয়েছে!`, "success");
+
         if (data.role === "admin") {
           router.push("/admin");
         } else if (data.role === "student") {
@@ -183,7 +202,7 @@ export default function HomePage() {
             {/* Desktop CTA */}
             <div className="hidden md:flex items-center gap-3">
               <button
-                onClick={() => openLoginWithRole("student")}
+                onClick={() => openLoginWithRole("student", false)}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
               >
                 <LogIn className="w-4 h-4" />
@@ -216,7 +235,7 @@ export default function HomePage() {
               </a>
             ))}
             <button
-              onClick={() => openLoginWithRole("student")}
+              onClick={() => openLoginWithRole("student", false)}
               className="w-full mt-2 inline-flex items-center justify-center gap-2 px-5 py-3 bg-slate-900 text-white text-sm font-semibold rounded-xl"
             >
               <LogIn className="w-4 h-4" />
@@ -248,10 +267,10 @@ export default function HomePage() {
                 Prottoy Academy combines dedicated academic mentoring for Class 6–10 with a modern digital portal for live results, attendance tracking, class materials, and official payment receipts.
               </p>
 
-              {/* Quick Role Login Buttons */}
+              {/* Quick Role Login Buttons (Locked to specific role) */}
               <div className="flex flex-wrap gap-3 pt-2">
                 <button
-                  onClick={() => openLoginWithRole("student")}
+                  onClick={() => openLoginWithRole("student", true)}
                   className="inline-flex items-center gap-2 px-6 py-3.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-sm rounded-xl shadow-lg transition-all"
                 >
                   <GraduationCap className="w-4 h-4" />
@@ -259,14 +278,14 @@ export default function HomePage() {
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => openLoginWithRole("faculty")}
+                  onClick={() => openLoginWithRole("faculty", true)}
                   className="inline-flex items-center gap-2 px-5 py-3.5 bg-white/10 hover:bg-white/15 text-white border border-white/20 font-semibold text-sm rounded-xl transition-all"
                 >
                   <Users className="w-4 h-4" />
                   Faculty Login
                 </button>
                 <button
-                  onClick={() => openLoginWithRole("admin")}
+                  onClick={() => openLoginWithRole("admin", true)}
                   className="inline-flex items-center gap-2 px-5 py-3.5 bg-white/10 hover:bg-white/15 text-white border border-white/20 font-semibold text-sm rounded-xl transition-all"
                 >
                   <ShieldCheck className="w-4 h-4" />
@@ -290,7 +309,7 @@ export default function HomePage() {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-white">Integrated ERP Portal</h2>
-                    <p className="text-xs text-slate-300">One unified login for everyone</p>
+                    <p className="text-xs text-slate-300">Dedicated access for Students, Faculty &amp; Admin</p>
                   </div>
                 </div>
 
@@ -318,7 +337,7 @@ export default function HomePage() {
                 </div>
 
                 <button
-                  onClick={() => openLoginWithRole("student")}
+                  onClick={() => openLoginWithRole("student", false)}
                   className="w-full py-3 bg-white text-slate-900 hover:bg-slate-100 font-bold text-sm rounded-xl transition-colors flex items-center justify-center gap-2"
                 >
                   <LogIn className="w-4 h-4" />
@@ -400,7 +419,7 @@ export default function HomePage() {
               <h2 className="text-3xl font-black text-slate-900 mt-1">Official Notice Board</h2>
             </div>
             <button
-              onClick={() => openLoginWithRole("student")}
+              onClick={() => openLoginWithRole("student", true)}
               className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-slate-900"
             >
               View All in Student Portal <ChevronRight className="w-4 h-4" />
@@ -537,17 +556,17 @@ export default function HomePage() {
               <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Quick Portals</h4>
               <ul className="space-y-2.5 text-sm">
                 <li>
-                  <button onClick={() => openLoginWithRole("student")} className="hover:text-white transition-colors">
+                  <button onClick={() => openLoginWithRole("student", true)} className="hover:text-white transition-colors">
                     Student Portal Login
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => openLoginWithRole("faculty")} className="hover:text-white transition-colors">
+                  <button onClick={() => openLoginWithRole("faculty", true)} className="hover:text-white transition-colors">
                     Faculty Portal Login
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => openLoginWithRole("admin")} className="hover:text-white transition-colors">
+                  <button onClick={() => openLoginWithRole("admin", true)} className="hover:text-white transition-colors">
                     Admin Dashboard Login
                   </button>
                 </li>
@@ -569,7 +588,7 @@ export default function HomePage() {
               <div className="space-y-2.5 text-sm text-slate-400">
                 <p className="flex items-start gap-2">
                   <MapPin className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>Bhabki Bazar, 7 No. Charbani Pakuriya Union, Melandah, Jamalpur</span>
+                  <span>Bhabki Bazar, 7 No. Charbani Pakuriya Union, Melandah, Jamalpur, contract number: 01743096339 </span>
                 </p>
                 <p className="text-xs text-slate-500 pt-2">
                   For admission or portal login credentials, please contact the academy office.
@@ -629,7 +648,7 @@ export default function HomePage() {
 
               <div className="flex flex-col gap-2.5">
                 <button
-                  onClick={() => openLoginWithRole("student")}
+                  onClick={() => openLoginWithRole("student", false)}
                   className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm rounded-xl shadow-sm transition-colors inline-flex items-center justify-center gap-2"
                 >
                   <LogIn className="w-4 h-4" />
@@ -647,7 +666,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* UNIFIED PROFESSIONAL LOGIN MODAL */}
+      {/* ROLE-ENFORCED PROFESSIONAL LOGIN MODAL */}
       {showLoginModal && (
         <div
           onClick={() => setShowLoginModal(false)}
@@ -676,28 +695,39 @@ export default function HomePage() {
                 />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Portal Sign In</h2>
-                <p className="text-xs text-slate-500 font-medium">Prottoy Academy ERP</p>
+                <h2 className="text-xl font-bold text-slate-900">
+                  {isRoleLocked ? `${roleLabels[loginRoleHint]} Portal Login` : "Portal Sign In"}
+                </h2>
+                <p className="text-xs text-slate-500 font-medium">
+                  {isRoleLocked
+                    ? `Sign in with your ${roleLabels[loginRoleHint].toLowerCase()} credentials`
+                    : "Select your portal role to continue"}
+                </p>
               </div>
             </div>
 
-            {/* Role Selector Tabs */}
-            <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-xl mb-6">
-              {(["student", "faculty", "admin"] as PortalRoleHint[]).map((role) => (
-                <button
-                  key={role}
-                  type="button"
-                  onClick={() => setLoginRoleHint(role)}
-                  className={`py-2 rounded-lg text-xs font-semibold capitalize transition-all ${
-                    loginRoleHint === role
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  {role}
-                </button>
-              ))}
-            </div>
+            {/* Role Selector Tabs: শুধু সাধারণ Portal Login থেকে ঢুকলেই দেখাবে */}
+            {!isRoleLocked && (
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-xl mb-6">
+                {(["student", "faculty", "admin"] as PortalRoleHint[]).map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => {
+                      setLoginRoleHint(role);
+                      setErrorMsg("");
+                    }}
+                    className={`py-2 rounded-lg text-xs font-semibold capitalize transition-all ${
+                      loginRoleHint === role
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {errorMsg && (
               <div className="bg-rose-50 text-rose-600 border border-rose-200/70 px-4 py-3 rounded-xl text-xs font-semibold mb-5">
@@ -708,7 +738,7 @@ export default function HomePage() {
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Login ID / Username
+                  {roleLabels[loginRoleHint]} ID / Username
                 </label>
                 <div className="relative">
                   <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
@@ -754,7 +784,7 @@ export default function HomePage() {
                 className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl shadow-sm text-sm transition-all disabled:opacity-50 mt-2 inline-flex items-center justify-center gap-2"
               >
                 <LogIn className="w-4 h-4" />
-                {loading ? "Signing in..." : "Secure Login"}
+                {loading ? "Signing in..." : `Sign In as ${roleLabels[loginRoleHint]}`}
               </button>
             </form>
           </div>
