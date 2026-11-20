@@ -201,42 +201,68 @@ export default function FacultyDashboard() {
     const classStudents = allStudents.filter((s) => s.class_name === markClass);
     if (classStudents.length === 0) return alert("⚠️ No students in this class!");
 
-    setMarkSaving(true);
-    try {
-      let savedCount = 0;
-      for (const stu of classStudents) {
-        const sid = String(stu.student_id || stu.id);
-        const m = marksMap[sid];
-        if (!m || (m.cq === "" && m.mcq === "" && m.pr === "")) continue;
+    const fMarks = Number(fullMarks || 100);
+    const payloadMarks: Record<string, any> = {};
+    let highestMark = 0;
 
-        const cq = Number(m.cq || 0);
-        const mcq = Number(m.mcq || 0);
-        const pr = Number(m.pr || 0);
-        const total = cq + mcq + pr;
+    for (const stu of classStudents) {
+      const sid = String(stu.student_id || stu.id);
+      const m = marksMap[sid];
+      if (!m || (m.cq === "" && m.mcq === "" && m.pr === "")) continue;
 
-        await fetch("/api/results", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            student_id: Number(sid),
-            class_name: markClass,
-            exam_name: examName.trim(),
-            subject_name: markSubject,
-            full_marks: Number(fullMarks || 100),
-            cq: m.cq === "" ? null : cq,
-            mcq: m.mcq === "" ? null : mcq,
-            pr: m.pr === "" ? null : pr,
-            total,
-          }),
-        });
-        savedCount++;
+      const cq = Number(m.cq || 0);
+      const mcq = Number(m.mcq || 0);
+      const pr = Number(m.pr || 0);
+      const total = cq + mcq + pr;
+
+      if (total > fMarks) {
+        return alert(`⚠️ ${stu.full_name}-এর মোট মার্কস (${total}) Full Marks (${fMarks})-এর বেশি হতে পারবে না!`);
       }
 
-      if (savedCount > 0) {
-        alert(`✅ Marks saved for ${savedCount} student(s)!`);
+      if (total > highestMark) highestMark = total;
+
+      const pct = fMarks > 0 ? (total / fMarks) * 100 : 0;
+      let grade = "F";
+      if (pct >= 80) grade = "A+";
+      else if (pct >= 70) grade = "A";
+      else if (pct >= 60) grade = "A-";
+      else if (pct >= 50) grade = "B";
+      else if (pct >= 40) grade = "C";
+      else if (pct >= 33) grade = "D";
+
+      payloadMarks[sid] = {
+        cq: m.cq === "" ? "" : String(cq),
+        mcq: m.mcq === "" ? "" : String(mcq),
+        pr: m.pr === "" ? "" : String(pr),
+        total: String(total),
+        grade,
+      };
+    }
+
+    if (Object.keys(payloadMarks).length === 0) {
+      return alert("⚠️ অন্তত একজন স্টুডেন্টের মার্কস ইনপুট দিন।");
+    }
+
+    setMarkSaving(true);
+    try {
+      const res = await fetch("/api/results", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          exam_name: examName.trim(),
+          class_name: markClass,
+          subject_name: markSubject,
+          full_marks: fMarks,
+          highest_marks: highestMark,
+          marks_data: payloadMarks,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        alert("✅ " + (result.message || "Marks published successfully!"));
         setMarksMap({});
       } else {
-        alert("⚠️ Please enter marks for at least one student.");
+        alert("❌ Error: " + result.message);
       }
     } catch (e) {
       alert("❌ Error saving marks.");

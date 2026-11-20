@@ -1,24 +1,21 @@
 import { NextResponse } from 'next/server';
-import pool from '../../../lib/db'; // 🔴 UPDATE
+import pool from '../../../lib/db';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-// ১. পেমেন্ট ডাটা দেখার জন্য (Admin এবং Student দুইজনের জন্যই)
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const studentId = searchParams.get('studentId'); // স্টুডেন্ট আইডি দিয়ে ফিল্টার করার জন্য
-    
+    const studentId = searchParams.get('studentId');
+
     let query = "";
     let params: any[] = [];
 
     if (studentId) {
-      // যদি স্টুডেন্ট লগইন করে থাকে, শুধু তার পেমেন্ট দেখাবে
       query = 'SELECT * FROM payments WHERE student_id = ? ORDER BY payment_date DESC';
       params = [studentId];
     } else {
-      // অ্যাডমিনের জন্য সব স্টুডেন্টের নামসহ পেমেন্ট লিস্ট (JOIN Query)
       query = `
         SELECT p.*, s.full_name, s.class_name 
         FROM payments p 
@@ -33,18 +30,17 @@ export async function GET(request: Request) {
   }
 }
 
-// ২. অ্যাডমিন যখন নতুন পেমেন্ট অ্যাড করবেন
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { student_id, amount, payment_purpose, payment_status } = body;
+    const { student_id, amount, payment_purpose, payment_status, received_by } = body;
 
     await pool.query(
-      'INSERT INTO payments (student_id, amount, payment_purpose, payment_status) VALUES (?, ?, ?, ?)',
-      [student_id, amount, payment_purpose, payment_status]
+      'INSERT INTO payments (student_id, amount, payment_purpose, payment_status, received_by) VALUES (?, ?, ?, ?, ?)',
+      [student_id, amount, payment_purpose, payment_status, received_by || 'Admin']
     );
 
-    return NextResponse.json({ success: true, message: 'Payment updated successfully!' });
+    return NextResponse.json({ success: true, message: 'Payment recorded successfully!' });
   } catch (error) {
     return NextResponse.json({ success: false, message: 'Failed to update payment' }, { status: 500 });
   }

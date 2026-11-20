@@ -15,7 +15,7 @@ const calculateGradeInfo = (obtained: number, fullMarks: number = 100) => {
   return { grade: "F", gp: "0.00" };
 };
 
-const EXAM_NAMES = ["Half Yearly Exam", "Annual Exam", "Pre-Test Exam", "Test Exam", "Model Test"];
+const EXAM_NAMES = ["Half Yearly Exam", "Annual Exam", "Pre-Test Exam", "Test Exam", "Model Test", "class test"];
 const CLASSES = ["Class 6", "Class 7", "Class 8", "Class 9", "Class 10"];
 
 const getClassCode = (cls: string) => {
@@ -133,12 +133,15 @@ function AdminContent() {
   const [noticeTargetClass, setNoticeTargetClass] = useState("All");
   const [noticeSaving, setNoticeSaving] = useState(false);
 
+  // Payment States
   const [payClassFilter, setPayClassFilter] = useState("");
   const [paySearchQuery, setPaySearchQuery] = useState("");
   const [payStudentId, setPayStudentId] = useState("");
   const [payAmount, setPayAmount] = useState("");
   const [payPurpose, setPayPurpose] = useState("");
   const [payStatus, setPayStatus] = useState("Paid");
+  const [payReceivedBy, setPayReceivedBy] = useState("Admin");
+  const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [payLoading, setPayLoading] = useState("");
 
   const [resultTab, setResultTab] = useState("publish");
@@ -755,11 +758,12 @@ function AdminContent() {
           student_id: payStudentId,
           amount: payAmount,
           payment_purpose: payPurpose,
-          payment_status: payStatus
+          payment_status: payStatus,
+          received_by: payReceivedBy || "Admin"
         })
       });
       if ((await res.json()).success) {
-        alert("✅ Recorded!");
+        alert("✅ Payment Recorded!");
         setPayStudentId("");
         setPayAmount("");
         setPayPurpose("");
@@ -816,8 +820,8 @@ function AdminContent() {
   });
 
   return (
-    <div className="max-w-7xl mx-auto w-full font-sans bg-[#f4f7fc] min-h-screen text-slate-800">
-      <div className="flex justify-between items-center bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-8">
+    <div className="max-w-7xl mx-auto w-full font-sans bg-[#f4f7fc] print:bg-white min-h-screen text-slate-800">
+      <div className="no-print flex justify-between items-center bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-8">
         <div>
           <h2 className="text-2xl font-black text-slate-800">Admin Portal</h2>
           <p className="text-sm font-medium text-slate-500">Manage Prottoy Academy System</p>
@@ -828,7 +832,7 @@ function AdminContent() {
       </div>
 
       {activeTab !== "dashboard" && (
-        <div className="mb-6">
+        <div className="no-print mb-6">
           <button onClick={() => router.push("?tab=dashboard")} className="px-5 py-2 bg-slate-800 text-white hover:bg-slate-900 font-bold text-sm rounded-xl shadow-sm active:scale-95 transition-all">
             ⬅ Back to Dashboard
           </button>
@@ -1612,38 +1616,180 @@ function AdminContent() {
 
       {/* PAYMENTS SECTION */}
       {activeTab === "payments" && (
-        <div className="animate-fade-in max-w-4xl mx-auto">
-          <h1 className="text-2xl font-black text-slate-800 mb-6">Student Payments Management</h1>
-          <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 mb-8">
-            <h3 className="text-lg font-black text-slate-700 border-b border-slate-100 pb-4 mb-5">+ Record Payment</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Student *</label>
-                <select value={payStudentId} onChange={(e) => setPayStudentId(e.target.value)} className={inputClass}>
-                  <option value="">-- Choose --</option>
-                  {filteredStudentsForPayment.map(std => (<option key={std.student_id} value={std.student_id}>{std.full_name}</option>))}
-                </select>
+        <div className="animate-fade-in max-w-6xl mx-auto">
+          <div className="no-print">
+            <h1 className="text-2xl font-black text-slate-800 mb-6">Student Payments Management</h1>
+            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 mb-8">
+              <h3 className="text-lg font-black text-slate-700 border-b border-slate-100 pb-4 mb-5">+ Record Payment</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Student *</label>
+                  <select value={payStudentId} onChange={(e) => setPayStudentId(e.target.value)} className={inputClass}>
+                    <option value="">-- Choose --</option>
+                    {filteredStudentsForPayment.map(std => (
+                      <option key={std.student_id} value={std.student_id}>{std.full_name} ({std.class_name})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Amount (৳) *</label>
+                  <input type="number" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="0" className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Purpose *</label>
+                  <input type="text" value={payPurpose} onChange={(e) => setPayPurpose(e.target.value)} placeholder="Monthly Fee / Exam" className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Received By *</label>
+                  <input type="text" value={payReceivedBy} onChange={(e) => setPayReceivedBy(e.target.value)} placeholder="e.g. Rashedul Sir" className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Status *</label>
+                  <select value={payStatus} onChange={(e) => setPayStatus(e.target.value)} className={inputClass}>
+                    <option value="Paid">Paid</option>
+                    <option value="Pending">Pending</option>
+                  </select>
+                </div>
+                <div className="lg:col-span-5 mt-2">
+                  <button type="button" onClick={handleRecordPayment} disabled={!!payLoading} className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-sm transition-colors w-full md:w-auto">
+                    {payLoading ? payLoading : "💾 Record Payment"}
+                  </button>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Amount (৳) *</label>
-                <input type="number" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="0" className={inputClass} />
+            </div>
+
+            {/* PAYMENT HISTORY TABLE */}
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-lg font-black text-slate-800">All Payment Records ({payments.length})</h3>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Purpose *</label>
-                <input type="text" value={payPurpose} onChange={(e) => setPayPurpose(e.target.value)} placeholder="Fee / Fine" className={inputClass} />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Status *</label>
-                <select value={payStatus} onChange={(e) => setPayStatus(e.target.value)} className={inputClass}>
-                  <option value="Paid">Paid</option>
-                  <option value="Pending">Pending</option>
-                </select>
-              </div>
-              <div className="lg:col-span-4 mt-2">
-                <button type="button" onClick={handleRecordPayment} disabled={!!payLoading} className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-sm transition-colors w-full md:w-auto">💾 Record Payment</button>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left border-collapse text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="p-4">Date</th>
+                      <th className="p-4">Student</th>
+                      <th className="p-4">Purpose</th>
+                      <th className="p-4">Amount</th>
+                      <th className="p-4">Received By</th>
+                      <th className="p-4 text-center">Status</th>
+                      <th className="p-4 text-center">Receipt</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {payments.map((p: any, idx: number) => (
+                      <tr key={p.id || p.payment_id || idx} className="hover:bg-slate-50">
+                        <td className="p-4 text-slate-600 font-medium">{p.payment_date?.substring(0, 10)}</td>
+                        <td className="p-4">
+                          <div className="font-bold text-slate-800">{p.full_name}</div>
+                          <div className="text-xs text-slate-500">ID: {p.student_id} • {p.class_name}</div>
+                        </td>
+                        <td className="p-4 font-bold text-slate-700">{p.payment_purpose}</td>
+                        <td className="p-4 font-black text-emerald-600">{p.amount} ৳</td>
+                        <td className="p-4 font-semibold text-blue-700">{p.received_by || "Admin"}</td>
+                        <td className="p-4 text-center">
+                          <span className={`px-3 py-1 rounded-full text-xs font-black ${p.payment_status === "Paid" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                            {p.payment_status}
+                          </span>
+                        </td>
+                        <td className="p-4 text-center">
+                          <button
+                            onClick={() => setSelectedReceipt(p)}
+                            className="px-3.5 py-1.5 bg-[#0f172a] hover:bg-slate-800 text-white rounded-lg font-bold text-xs"
+                          >
+                            🖨️ Print Slip
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {payments.length === 0 && (
+                      <tr><td colSpan={7} className="p-8 text-center text-slate-400 font-bold">No payment records found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
+
+          {/* PRINTABLE MONEY RECEIPT MODAL */}
+          {selectedReceipt && (
+            <div className="fixed inset-0 z-50 bg-black/60 print:bg-white print:static flex items-center justify-center p-4 print:p-0">
+              <div className="bg-white rounded-2xl print:rounded-none max-w-xl w-full p-6 md:p-8 shadow-2xl print:shadow-none border-2 border-slate-800">
+                <div className="text-center border-b-2 border-slate-800 pb-4 mb-5">
+                  <h2 className="text-2xl font-black text-emerald-800">প্রত্যয় একাডেমি (PROTTOY ACADEMY)</h2>
+                  <p className="text-xs font-bold text-slate-600">ভাবকী বাজার, মেলান্দহ, জামালপুর</p>
+                  <span className="inline-block mt-2 px-4 py-1 bg-slate-900 text-white text-xs font-black uppercase tracking-widest rounded-full">
+                    Official Money Receipt
+                  </span>
+                </div>
+
+                <div className="space-y-2.5 text-sm mb-6">
+                  <div className="flex justify-between border-b border-dashed pb-2">
+                    <span className="text-slate-500 font-bold">Receipt No:</span>
+                    <span className="font-black">PA-{selectedReceipt.id || selectedReceipt.payment_id || "001"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-dashed pb-2">
+                    <span className="text-slate-500 font-bold">Date:</span>
+                    <span className="font-bold">{selectedReceipt.payment_date?.substring(0, 10)}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-dashed pb-2">
+                    <span className="text-slate-500 font-bold">Student Name:</span>
+                    <span className="font-black">{selectedReceipt.full_name}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-dashed pb-2">
+                    <span className="text-slate-500 font-bold">Student ID &amp; Class:</span>
+                    <span className="font-bold">{selectedReceipt.student_id} ({selectedReceipt.class_name})</span>
+                  </div>
+                  <div className="flex justify-between border-b border-dashed pb-2">
+                    <span className="text-slate-500 font-bold">Purpose:</span>
+                    <span className="font-bold">{selectedReceipt.payment_purpose}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-dashed pb-2">
+                    <span className="text-slate-500 font-bold">Received By:</span>
+                    <span className="font-bold text-blue-700">{selectedReceipt.received_by || "Admin"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-dashed pb-2">
+                    <span className="text-slate-500 font-bold">Status:</span>
+                    <span className="font-black uppercase">{selectedReceipt.payment_status}</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-emerald-50 p-3 rounded-xl border border-emerald-200 mt-3">
+                    <span className="font-black text-slate-800">Total Amount Paid:</span>
+                    <span className="text-xl font-black text-emerald-700">{selectedReceipt.amount} ৳</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-end mt-10 pt-4 text-xs font-bold text-slate-700">
+                  <div className="border-t border-slate-800 pt-1 w-36 text-center">Student / Guardian</div>
+                  <div className="border-t border-slate-800 pt-1 w-40 text-center">
+                    {selectedReceipt.received_by || "Admin"}<br />
+                    <span className="text-[10px] font-normal">Authorized Signature</span>
+                  </div>
+                </div>
+
+                <div className="no-print flex gap-3 mt-6 pt-4 border-t">
+                  <button
+                    onClick={() => window.print()}
+                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-sm"
+                  >
+                    🖨️ Print / Save as PDF
+                  </button>
+                  <button
+                    onClick={() => setSelectedReceipt(null)}
+                    className="px-6 py-3 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-sm"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <style dangerouslySetInnerHTML={{__html: `
+            @media print {
+              .no-print { display: none !important; }
+              body { background: #ffffff !important; }
+            }
+          `}} />
         </div>
       )}
     </div>
