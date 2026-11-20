@@ -39,6 +39,7 @@ function StudentContent() {
 
   const [faculties, setFaculties] = useState<any[]>([]);
   const [myPayments, setMyPayments] = useState<any[]>([]);
+  const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [myResults, setMyResults] = useState<any[]>([]);
   const [myNotices, setMyNotices] = useState<any[]>([]);
   const [myMaterials, setMyMaterials] = useState<any[]>([]);
@@ -729,10 +730,6 @@ function StudentContent() {
           </div>
         )}
 
-
-        const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
-
-
         {activeTab === "payments" && (
           <div className="max-w-4xl mx-auto">
             <div className="no-print bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
@@ -916,7 +913,13 @@ function StudentContent() {
                         </div>
 
                         <div className="flex justify-center my-1 md:my-0">
-                          <Image src="/prottoy academy logo.png" alt="Logo" width={75} height={75} className="rounded-full border border-black object-cover bg-white" />
+                          <Image
+  src="/prottoy academy logo.png"
+  alt="Logo"
+  width={75}
+  height={75}
+  className="rounded-full border border-black object-cover bg-white"
+/>
                         </div>
 
                         <div className="text-center md:text-right print:text-right">
@@ -1088,7 +1091,7 @@ function StudentContent() {
 export default function StudentDashboard() {
   return (
     <Suspense fallback={<div className="min-h-screen flex justify-center items-center font-black text-xl text-blue-600 animate-pulse">Loading Portal...</div>}>
-      <StudentContent />
+      <StudentContent/>
     </Suspense>
   );
 }
