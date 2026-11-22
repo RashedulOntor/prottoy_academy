@@ -153,8 +153,12 @@ export default function FacultyDashboard() {
       confirmText: "Logout",
       variant: "danger",
     });
-    if (ok) router.push("/");
+    if (ok) {
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.href = "/";
+    }
   };
+    
 
   const handleSaveAttendance = async () => {
     if (!attClass || !attDate) return showToast("Class এবং Date নির্বাচন করুন।", "warning");

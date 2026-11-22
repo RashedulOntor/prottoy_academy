@@ -441,7 +441,10 @@ function AdminContent() {
       confirmText: "Logout",
       variant: "danger",
     });
-    if (ok) window.location.href = "/";
+   if (ok) {
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.href = "/";
+    }
   };
 
   const handleDeleteStudent = async (student: any) => {

@@ -210,8 +210,13 @@ function StudentContent() {
       confirmText: "Logout",
       variant: "danger",
     });
-    if (ok) router.push("/");
+    if (ok) {
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.href = "/";
+    }
   };
+
+
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();

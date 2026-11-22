@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool from '../../../lib/db';
+import { createSessionToken } from '../../../lib/auth';
 
 export async function POST(request: Request) {
   try {
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     const user = users[0];
     let targetId = user.id || user.user_id;
 
-    // যদি ফ্যাকাল্টি হয়, তবে faculty টেবিল থেকে তার আসল faculty id নিয়ে আসা
+    // যদি ফ্যাকাল্টি হয়, তবে faculty টেবিল থেকে তার আসল faculty id নিয়ে আসা
     if (user.role === 'faculty') {
       const [facRows]: any = await pool.query('SELECT * FROM faculty WHERE user_id = ?', [targetId]);
       if (facRows.length > 0) {
@@ -29,11 +30,28 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({
+    // সিকিউর সেশন টোকেন তৈরি
+    const token = await createSessionToken({
+      userId: user.id || user.user_id,
+      role: user.role,
+      entityId: String(targetId),
+    });
+
+    const response = NextResponse.json({
       success: true,
       role: user.role,
       id: targetId
     });
+
+    // Session Cookie সেট করা (ব্রাউজার বন্ধ করলেই লগআউট হয়ে যাবে)
+    response.cookies.set('prottoy_session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
+
+    return response;
 
   } catch (error) {
     console.error('Login Error:', error);
